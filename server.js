@@ -47,7 +47,7 @@ connectDB().then((connections) => {
   console.log('Successfully connected to both databases');
   initChangeStreams(io);
 }).catch(err => {
-  console.error('Failed to connect to base:', err);
+  console.error('Failed to connect to base LOL:', err);
 });
 
 // Routes
