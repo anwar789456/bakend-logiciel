@@ -20,12 +20,14 @@ const server = http.createServer(app);
 
 // Initialize Socket.io
 const io = new Server(server, {
+  path: '/admin/socket.io',
   cors: {
-    origin: '*', // Allow all origins or specify your frontend URL
+    origin: '*',
     methods: ['GET', 'POST', 'PUT', 'DELETE'],
     credentials: true
   }
 });
+
 
 // Make io accessible throughout the app
 app.set('io', io);
