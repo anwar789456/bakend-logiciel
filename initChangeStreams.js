@@ -13,11 +13,13 @@ const initChangeStreams = async (io) => {
     // Ensure models are initialized with their respective connections
     const Product = productModel.initModel ? productModel.initModel() : productModel;
     const Chat = chatModel.initModel ? chatModel.initModel() : chatModel;
+    const Devis = devisModel.initModel ? devisModel.initModel() : devisModel;
     const DevisCompteur = devisCompteurModel.initModel ? devisCompteurModel.initModel() : devisCompteurModel;
     
     // Pass io to each setupChangeStream call
     await setupChangeStream(Product, 'produits-updated', io);
     await setupChangeStream(Chat, 'chatlogs-updated', io);
+    await setupChangeStream(Devis, 'devis-updated', io);
     await setupChangeStream(DevisCompteur, 'devisCompteur-updated', io);
 
     console.log('Change streams initialized successfully');

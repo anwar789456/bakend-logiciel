@@ -17,13 +17,13 @@ let DevisCompteur;
 // };
 
 const initModel = () => {
-    const { conn1 } = getConnections();
-    if (!conn1) {
-        console.warn("⚠️ conn1 is not initialized yet. Make sure connectDB() has been called before this.");
+    const { conn2 } = getConnections();
+    if (!conn2) {
+        console.warn("⚠️ Database connection is not initialized yet. Make sure connectDB() has been called before this.");
         return undefined;
     }
     if (!DevisCompteur) {
-        DevisCompteur = conn1.model('DevisCompteur', devisCompteurSchema, 'devisCompteur');
+        DevisCompteur = conn2.model('DevisCompteur', devisCompteurSchema, 'devisCompteur');
     }
     return DevisCompteur;
 };

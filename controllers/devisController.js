@@ -1,4 +1,5 @@
-const Devis = require("../models/devisModel");
+const devisModel = require("../models/devisModel");
+let Devis = devisModel.initModel();
 
 // Get all devis items
 const getAllDevisItems = async (req, res) => {

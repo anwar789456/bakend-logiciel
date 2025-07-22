@@ -1,5 +1,5 @@
 const productModel = require("../models/productModel");
-const Product = productModel.Product;
+let Product = productModel.initModel();
 // Get all product items
 const getAllProductItems = async (req, res) => {
     try {

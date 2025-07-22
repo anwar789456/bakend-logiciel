@@ -13,9 +13,9 @@ const devisSchema = new mongoose.Schema({
 let Devis;
 
 const initModel = () => {
-    const { conn1 } = getConnections();
-    if (!Devis && conn1) {
-        Devis = conn1.model('Devis', devisSchema, "devis");
+    const { conn2 } = getConnections();
+    if (!Devis && conn2) {
+        Devis = conn2.model('Devis', devisSchema, "devis");
     }
     return Devis;
 };

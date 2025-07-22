@@ -33,9 +33,9 @@ let Commande;
 
 // Function to initialize the model with the appropriate connection
 const initModel = () => {
-    const { conn1 } = getConnections();
-    if (!Commande && conn1) {
-        Commande = conn1.model('Commande', commandeSchema, "commandes");
+    const { conn2 } = getConnections();
+    if (!Commande && conn2) {
+        Commande = conn2.model('Commande', commandeSchema, "commandes");
     }
     return Commande;
 };

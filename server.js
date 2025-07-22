@@ -48,10 +48,10 @@ app.use(express.json());
 
 // Database Connection and Initialize Change Streams
 connectDB().then((connections) => {
-  console.log('Successfully connected to both databases');
+  console.log('Successfully connected to database');
   initChangeStreams(io);
 }).catch(err => {
-  console.error('Failed to connect to base LOL:', err);
+  console.error('Failed to connect to database:', err);
 });
 
 // Routes

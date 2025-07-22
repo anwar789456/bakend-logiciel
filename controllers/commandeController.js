@@ -1,5 +1,5 @@
 const commandeModel = require("../models/Commande");
-const Commande = commandeModel.Commande;
+let Commande = commandeModel.initModel();
 
 const getAllCommandeItems = async (req, res) => {
     try {

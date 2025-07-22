@@ -1,8 +1,7 @@
-const devisCompteurModel = require('../models/devisCompteurModel');
 const { initModel } = require('../models/devisCompteurModel');
 
 // Initialize the DevisCompteur model
-const DevisCompteur = devisCompteurModel.initModel();
+let DevisCompteur = initModel();
 
 // Get the current counter value
 const getCounter = async (req, res) => {

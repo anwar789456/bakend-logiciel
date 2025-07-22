@@ -1,5 +1,5 @@
 const chatModel = require("../models/messagerieModel");
-const Chat = chatModel.Chat;
+let Chat = chatModel.initModel();
 
 const getAllChatItems = async (req, res) => {
     try {
