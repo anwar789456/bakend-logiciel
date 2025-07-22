@@ -1,0 +1,14 @@
+const express = require('express');
+const router = express.Router();
+const { getCounter, incrementCounter, updateCounter } = require('../controllers/devisCompteurController');
+
+// Get the current counter value
+router.get('/admin/api/devis-compteur', getCounter);
+
+// Increment the counter
+router.post('/admin/api/devis-compteur/increment', incrementCounter);
+
+// Update the counter to a specific value
+router.post('/admin/api/devis-compteur/update', updateCounter);
+
+module.exports = router;

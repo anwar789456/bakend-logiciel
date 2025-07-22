@@ -9,6 +9,8 @@ const { Server } = require('socket.io');
 const ProductRouter = require('./routes/productRoutes');
 const CommandeRouter = require('./routes/commandeRouter');
 const messageRouter = require('./routes/messageRouter');
+const DevisRouter = require('./routes/devisRoutes');
+const DevisCompteurRouter = require('./routes/devisCompteurRouter');
 const initChangeStreams = require('./initChangeStreams');
 
 const app = express();
@@ -56,7 +58,8 @@ connectDB().then((connections) => {
 app.use(ProductRouter);
 app.use(CommandeRouter);
 app.use(messageRouter);
-
+app.use(DevisRouter);
+app.use(DevisCompteurRouter);
 
 // Start Server
 server.listen(PORT, '0.0.0.0', () => {
