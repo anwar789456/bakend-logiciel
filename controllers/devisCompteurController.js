@@ -1,4 +1,5 @@
 const devisCompteurModel = require('../models/devisCompteurModel');
+const { initModel } = require('../models/devisCompteurModel');
 
 // Initialize the DevisCompteur model
 const DevisCompteur = devisCompteurModel.initModel();
@@ -6,13 +7,14 @@ const DevisCompteur = devisCompteurModel.initModel();
 // Get the current counter value
 const getCounter = async (req, res) => {
   try {
+    const DevisCompteur = initModel(); // call this inside the function
+    if (!DevisCompteur) throw new Error("Model not initialized");
+
     let counter = await DevisCompteur.findOne();
-    
-    // If no counter exists, create one
     if (!counter) {
       counter = await DevisCompteur.create({ devisComptValue: '1', date: new Date() });
     }
-    
+
     res.status(200).json(counter);
   } catch (error) {
     console.error('Error getting counter:', error);
