@@ -8,13 +8,6 @@ const devisCompteurSchema = new mongoose.Schema({
 
 let DevisCompteur;
 
-// const initModel = () => {
-//     const { conn1 } = getConnections();
-//     if (!DevisCompteur && conn1) {
-//         DevisCompteur = conn1.model('DevisCompteur', devisCompteurSchema, "devisCompteur");
-//     }
-//     return DevisCompteur;
-// };
 
 const initModel = () => {
     const { conn2 } = getConnections();
@@ -27,14 +20,5 @@ const initModel = () => {
     }
     return DevisCompteur;
 };
-
-// module.exports = {
-//     DevisCompteur: null,
-//     initModel: function() {
-//         const model = initModel();
-//         this.DevisCompteur = model;
-//         return model;
-//     }
-// };
 
 module.exports = { initModel };

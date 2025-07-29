@@ -2,12 +2,15 @@ const mongoose = require('mongoose');
 const { getConnections } = require('../config/db');
 
 const devisSchema = new mongoose.Schema({
-  clientName: { type: String },
-  email: { type: String },
-  phone: { type: String },
-  description: { type: String },
+  clientName: String,
+  compteur : String,
+  adresse : String,
+  telephone: String,
+  email: String,
+  description: String,
   status: { type: String, default: 'pending' },
-  createdAt: { type: Date, default: Date.now }
+  createdAt: { type: Date },
+  
 });
 
 let Devis;
