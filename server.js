@@ -11,7 +11,9 @@ const CommandeRouter = require('./routes/commandeRouter');
 const messageRouter = require('./routes/messageRouter');
 const DevisRouter = require('./routes/devisRoutes');
 const DevisCompteurRouter = require('./routes/devisCompteurRouter');
-const FicheCommandeRouter = require('./routes/ficheCommandeRouter');
+const BackupRouter = require('./routes/backupRoutes');
+const StatsRouter = require('./routes/statsRoutes');
+const AIAssistantRouter = require('./routes/aiAssistantRoutes');
 const initChangeStreams = require('./initChangeStreams');
 
 const app = express();
@@ -61,19 +63,9 @@ app.use(CommandeRouter);
 app.use(messageRouter);
 app.use(DevisRouter);
 app.use(DevisCompteurRouter);
-app.use('/api/fiche-commandes', FicheCommandeRouter);
-
-// Test endpoint for fiche-commande
-app.get('/test/fiche-commande', async (req, res) => {
-  try {
-    const ficheCommandeModel = require('./models/ficheCommandes');
-    const FicheCommande = ficheCommandeModel.initModel();
-    res.json({ message: 'FicheCommande model initialized successfully', modelName: FicheCommande.modelName });
-  } catch (error) {
-    console.error('Error testing fiche-commande:', error);
-    res.status(500).json({ message: 'Error testing fiche-commande', error: error.message });
-  }
-});
+app.use('/admin/api/backup', BackupRouter);
+app.use('/admin/api/stats', StatsRouter);
+app.use(AIAssistantRouter);
 
 // Start Server
 server.listen(PORT, '0.0.0.0', () => {
