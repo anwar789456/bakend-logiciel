@@ -63,8 +63,8 @@ app.use(CommandeRouter);
 app.use(messageRouter);
 app.use(DevisRouter);
 app.use(DevisCompteurRouter);
-app.use('/admin/api/backup', BackupRouter);
-app.use('/admin/api/stats', StatsRouter);
+app.use('/admin/api/logiciel/backup', BackupRouter);
+app.use('/admin/api/logiciel/stats', StatsRouter);
 app.use(AIAssistantRouter);
 
 // Start Server

@@ -32,7 +32,7 @@ function getModel(modelModule) {
 }
 
 // Route pour les statistiques générales
-router.get('/admin/api/general', async (req, res) => {
+router.get('/general', async (req, res) => {
   try {
     const ProductsModel = getModel(ProductModel);
     const CommandesModel = getModel(CommandeModel);
@@ -71,7 +71,7 @@ router.get('/admin/api/general', async (req, res) => {
 });
 
 // Route pour les données de graphiques
-router.get('/admin/api/charts', async (req, res) => {
+router.get('/charts', async (req, res) => {
   try {
     const ProductsModel = getModel(ProductModel);
     const CommandesModel = getModel(CommandeModel);
@@ -171,7 +171,7 @@ router.get('/admin/api/charts', async (req, res) => {
 });
 
 // Route pour les clients disponibles (pour les filtres)
-router.get('/admin/api/clients', async (req, res) => {
+router.get('/clients', async (req, res) => {
   try {
     const CommandesModel = getModel(CommandeModel);
     const DevisModelInstance = getModel(DevisModel);
@@ -191,7 +191,7 @@ router.get('/admin/api/clients', async (req, res) => {
 });
 
 // Route pour les données des produits avec pagination
-router.get('/admin/api/products', async (req, res) => {
+router.get('/products', async (req, res) => {
   try {
     const { page = 1, limit = 10, search = '' } = req.query;
     const ProductsModel = getModel(ProductModel);
@@ -228,7 +228,7 @@ router.get('/admin/api/products', async (req, res) => {
 });
 
 // Route pour les données des commandes avec pagination
-router.get('/admin/api/commandes', async (req, res) => {
+router.get('/commandes', async (req, res) => {
   try {
     const { page = 1, limit = 10, search = '' } = req.query;
     const CommandesModel = getModel(CommandeModel);
@@ -265,7 +265,7 @@ router.get('/admin/api/commandes', async (req, res) => {
 });
 
 // Route pour les données des devis avec pagination
-router.get('/admin/api/devis', async (req, res) => {
+router.get('/devis', async (req, res) => {
   try {
     const { page = 1, limit = 10, search = '' } = req.query;
     const DevisModelInstance = getModel(DevisModel);
@@ -302,7 +302,7 @@ router.get('/admin/api/devis', async (req, res) => {
 });
 
 // Route pour les données des messages avec pagination
-router.get('/admin/api/messages', async (req, res) => {
+router.get('/messages', async (req, res) => {
   try {
     const { page = 1, limit = 10, search = '' } = req.query;
     const MessagerieModelInstance = getModel(MessagerieModel);
