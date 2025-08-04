@@ -57,11 +57,14 @@ const updateCounter = async (req, res) => {
     
     // If no counter exists, create one
     if (!counter) {
-      counter = await DevisCompteur.create({ devisComptValue: value, date: new Date() });
+      counter = await DevisCompteur.create({ 
+        devisComptValue: value, 
+        datedeviscompt: new Date() // Fixed: use correct field name
+      });
     } else {
       // Update the counter
       counter.devisComptValue = value;
-      counter.date = new Date();
+      counter.datedeviscompt = new Date(); // Fixed: use correct field name
       await counter.save();
     }
     
