@@ -1,12 +1,9 @@
 const { initModel } = require('../models/devisCompteurModel');
 
-// Initialize the DevisCompteur model
-let DevisCompteur = initModel();
-
 // Get the current counter value
 const getCounter = async (req, res) => {
   try {
-    const DevisCompteur = initModel(); // call this inside the function
+    const DevisCompteur = initModel();
     if (!DevisCompteur) throw new Error("Model not initialized");
 
     let counter = await DevisCompteur.findOne();
@@ -24,6 +21,8 @@ const getCounter = async (req, res) => {
 // Increment the counter and return the new value
 const incrementCounter = async (req, res) => {
   try {
+    const DevisCompteur = initModel();
+
     let counter = await DevisCompteur.findOne();
     
     // If no counter exists, create one
@@ -47,6 +46,8 @@ const incrementCounter = async (req, res) => {
 // Update the counter to a specific value
 const updateCounter = async (req, res) => {
   try {
+    const DevisCompteur = initModel();
+
     const { value } = req.body;
     
     if (!value || value.trim() === '') {
