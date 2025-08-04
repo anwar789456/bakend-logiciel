@@ -10,6 +10,6 @@ router.get('/admin/api/logiciel/devis-compteur/get-devis-counter', getCounter);
 router.post('/admin/api/logiciel/devis-compteur/increment', incrementCounter);
 
 // Update the counter to a specific value
-router.post('/admin/api/logiciel/devis-compteur/update', updateCounter);
+router.put('/admin/api/logiciel/devis-compteur/update', updateCounter);
 
 module.exports = router;
