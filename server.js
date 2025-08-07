@@ -14,6 +14,8 @@ const DevisCompteurRouter = require('./routes/devisCompteurRouter');
 const BackupRouter = require('./routes/backupRoutes');
 const StatsRouter = require('./routes/statsRoutes');
 const AIAssistantRouter = require('./routes/aiAssistantRoutes');
+const TypeProduitRouter = require('./routes/typeProduitRoutes');
+const CaisseRouter = require('./routes/caisseRoutes');
 const initChangeStreams = require('./initChangeStreams');
 
 const app = express();
@@ -66,6 +68,8 @@ app.use(DevisCompteurRouter);
 app.use('/admin/api/logiciel/backup', BackupRouter);
 app.use('/admin/api/logiciel/stats', StatsRouter);
 app.use(AIAssistantRouter);
+app.use(TypeProduitRouter);
+app.use(CaisseRouter);
 
 // Start Server
 server.listen(PORT, '0.0.0.0', () => {

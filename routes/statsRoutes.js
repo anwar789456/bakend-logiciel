@@ -7,6 +7,8 @@ const CommandeModel = require('../models/Commande');
 const DevisModel = require('../models/devisModel');
 const DevisCompteurModel = require('../models/devisCompteurModel');
 const MessagerieModel = require('../models/messagerieModel');
+const TypeProduitModel = require('../models/typeProduitsModel');
+const CaisseModel = require('../models/caisseModel');
 
 // Helper function to get the actual model from the module
 function getModel(modelModule) {
@@ -27,6 +29,12 @@ function getModel(modelModule) {
   }
   if (modelModule && modelModule.Messagerie) {
     return modelModule.Messagerie;
+  }
+  if (modelModule && modelModule.TypeProduit) {
+    return modelModule.TypeProduit;
+  }
+  if (modelModule && modelModule.Caisse) {
+    return modelModule.Caisse;
   }
   return modelModule;
 }
