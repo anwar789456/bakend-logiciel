@@ -7,6 +7,8 @@ const devisCompteurModel = require('./models/devisCompteurModel');
 const ficheCommandeModel = require('./models/ficheCommandes');
 const typeProduitModel = require('./models/typeProduitsModel');
 const caisseModel = require('./models/caisseModel');
+const userModel = require('./models/userModel');
+const demandeCongeModel = require('./models/demandeCongeModel');
 const { setupChangeStream } = require('./changeStream');
 
 const initChangeStreams = async (io) => {
@@ -21,6 +23,8 @@ const initChangeStreams = async (io) => {
     const FicheCommande = ficheCommandeModel.initModel ? ficheCommandeModel.initModel() : ficheCommandeModel;
     const TypeProduit = typeProduitModel.initModel ? typeProduitModel.initModel() : typeProduitModel;
     const Caisse = caisseModel.initModel ? caisseModel.initModel() : caisseModel;
+    const User = userModel.initModel ? userModel.initModel() : userModel;
+    const DemandeConge = demandeCongeModel.initModel ? demandeCongeModel.initModel() : demandeCongeModel;
     
     // Pass io to each setupChangeStream call
     await setupChangeStream(Product, 'produits-updated', io);
@@ -30,6 +34,8 @@ const initChangeStreams = async (io) => {
     await setupChangeStream(FicheCommande, 'ficheCommandes-updated', io);
     await setupChangeStream(TypeProduit, 'typeProduits-updated', io);
     await setupChangeStream(Caisse, 'caisse-updated', io);
+    await setupChangeStream(User, 'users-updated', io);
+    await setupChangeStream(DemandeConge, 'demandeConges-updated', io);
 
     console.log('Change streams initialized successfully');
   } catch (error) {

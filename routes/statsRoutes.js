@@ -9,6 +9,8 @@ const DevisCompteurModel = require('../models/devisCompteurModel');
 const MessagerieModel = require('../models/messagerieModel');
 const TypeProduitModel = require('../models/typeProduitsModel');
 const CaisseModel = require('../models/caisseModel');
+const UserModel = require('../models/userModel');
+const DemandeCongeModel = require('../models/demandeCongeModel');
 
 // Helper function to get the actual model from the module
 function getModel(modelModule) {
@@ -36,6 +38,12 @@ function getModel(modelModule) {
   if (modelModule && modelModule.Caisse) {
     return modelModule.Caisse;
   }
+  if (modelModule && modelModule.User) {
+    return modelModule.User;
+  }
+  if (modelModule && modelModule.DemandeConge) {
+    return modelModule.DemandeConge;
+  }
   return modelModule;
 }
 
@@ -47,6 +55,7 @@ router.get('/general', async (req, res) => {
     const DevisModelInstance = getModel(DevisModel);
     const DevisCompteurModelInstance = getModel(DevisCompteurModel);
     const MessagerieModelInstance = getModel(MessagerieModel);
+    const DemandeCongeModelInstance = getModel(DemandeCongeModel);
 
     const stats = {
       products: {
@@ -68,6 +77,12 @@ router.get('/general', async (req, res) => {
       messages: {
         total: await MessagerieModelInstance.countDocuments(),
         unread: await MessagerieModelInstance.countDocuments({ read: false })
+      },
+      demandeConges: {
+        total: await DemandeCongeModelInstance.countDocuments(),
+        pending: await DemandeCongeModelInstance.countDocuments({ decisionResponsable: 'En attente' }),
+        approved: await DemandeCongeModelInstance.countDocuments({ decisionResponsable: 'Approuvé' }),
+        rejected: await DemandeCongeModelInstance.countDocuments({ decisionResponsable: 'Rejeté' })
       }
     };
 
@@ -75,6 +90,67 @@ router.get('/general', async (req, res) => {
   } catch (error) {
     console.error('Error fetching general stats:', error);
     res.status(500).json({ error: 'Failed to fetch general statistics' });
+  }
+});
+
+// Route pour les statistiques spécifiques aux demandes de congé
+router.get('/demandeConges', async (req, res) => {
+  try {
+    const DemandeCongeModelInstance = getModel(DemandeCongeModel);
+    
+    // Statistiques générales
+    const totalDemandes = await DemandeCongeModelInstance.countDocuments();
+    const pendingDemandes = await DemandeCongeModelInstance.countDocuments({ decisionResponsable: 'En attente' });
+    const approvedDemandes = await DemandeCongeModelInstance.countDocuments({ decisionResponsable: 'Approuvé' });
+    const rejectedDemandes = await DemandeCongeModelInstance.countDocuments({ decisionResponsable: 'Rejeté' });
+    
+    // Statistiques par job
+    const demandesByJob = await DemandeCongeModelInstance.aggregate([
+      { $group: { _id: '$job', count: { $sum: 1 } } },
+      { $sort: { count: -1 } }
+    ]);
+    
+    // Statistiques par motif
+    const demandesByMotif = await DemandeCongeModelInstance.aggregate([
+      { $group: { _id: '$motif', count: { $sum: 1 } } },
+      { $sort: { count: -1 } }
+    ]);
+    
+    // Statistiques par mois (pour l'année en cours)
+    const currentYear = new Date().getFullYear();
+    const demandesByMonth = await DemandeCongeModelInstance.aggregate([
+      {
+        $match: {
+          'dateRange.startDate': {
+            $gte: new Date(`${currentYear}-01-01`),
+            $lte: new Date(`${currentYear}-12-31`)
+          }
+        }
+      },
+      {
+        $group: {
+          _id: { $month: '$dateRange.startDate' },
+          count: { $sum: 1 }
+        }
+      },
+      { $sort: { _id: 1 } }
+    ]);
+    
+    res.json({
+      summary: {
+        total: totalDemandes,
+        pending: pendingDemandes,
+        approved: approvedDemandes,
+        rejected: rejectedDemandes,
+        approvalRate: totalDemandes > 0 ? (approvedDemandes / totalDemandes * 100).toFixed(2) : 0
+      },
+      byJob: demandesByJob,
+      byMotif: demandesByMotif,
+      byMonth: demandesByMonth
+    });
+  } catch (error) {
+    console.error('Error fetching demande conge stats:', error);
+    res.status(500).json({ error: 'Failed to fetch demande conge statistics' });
   }
 });
 

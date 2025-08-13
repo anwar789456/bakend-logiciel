@@ -16,6 +16,8 @@ const StatsRouter = require('./routes/statsRoutes');
 const AIAssistantRouter = require('./routes/aiAssistantRoutes');
 const TypeProduitRouter = require('./routes/typeProduitRoutes');
 const CaisseRouter = require('./routes/caisseRoutes');
+const UserRouter = require('./routes/userRoutes');
+const DemandeCongeRouter = require('./routes/demandeCongeRoutes');
 const initChangeStreams = require('./initChangeStreams');
 
 const app = express();
@@ -70,6 +72,8 @@ app.use('/admin/api/logiciel/stats', StatsRouter);
 app.use(AIAssistantRouter);
 app.use(TypeProduitRouter);
 app.use(CaisseRouter);
+app.use(UserRouter);
+app.use(DemandeCongeRouter);
 
 // Start Server
 server.listen(PORT, '0.0.0.0', () => {
