@@ -2,13 +2,7 @@ const express = require('express');
 const router = express.Router();
 
 // Import controller functions
-const {
-    getAllUsers,
-    createUser,
-    getUserById,
-    updateUserById,
-    deleteUserById
-} = require('../controllers/userController');
+const { getAllUsers, createUser, getUserById, updateUserById, deleteUserById } = require('../controllers/userController');
 
 // Get all users
 router.get('/admin/api/logiciel/get-users', getAllUsers);
