@@ -12,6 +12,7 @@ const CaisseModel = require('../models/caisseModel');
 const UserModel = require('../models/userModel');
 const DemandeCongeModel = require('../models/demandeCongeModel');
 const EmployeeModel = require('../models/employeeModel');
+const AgendaModel = require('../models/agendaModel');
 
 // Helper function to get the actual model from the module
 function getModel(modelModule) {
@@ -48,6 +49,9 @@ function getModel(modelModule) {
   if (modelModule && modelModule.Employee) {
     return modelModule.Employee;
   }
+  if (modelModule && modelModule.Agenda) {
+    return modelModule.Agenda;
+  }
   return modelModule;
 }
 
@@ -61,6 +65,7 @@ router.get('/general', async (req, res) => {
     const MessagerieModelInstance = getModel(MessagerieModel);
     const DemandeCongeModelInstance = getModel(DemandeCongeModel);
     const EmployeeModelInstance = getModel(EmployeeModel);
+    const AgendaModelInstance = getModel(AgendaModel);
 
     const stats = {
       products: {
@@ -94,10 +99,77 @@ router.get('/general', async (req, res) => {
         recent: await EmployeeModelInstance.countDocuments({
           date_recrutement: { $gte: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000) }
         })
+      },
+      agenda: {
+        total: await AgendaModelInstance.countDocuments(),
+        upcoming: await AgendaModelInstance.countDocuments({
+          date_event_start: { $gte: new Date() }
+        }),
+        past: await AgendaModelInstance.countDocuments({
+          date_event_end: { $lt: new Date() }
+        })
       }
     };
 
     res.json(stats);
+  } catch (error) {
+    console.error('Error fetching general stats:', error);
+    res.status(500).json({ error: 'Failed to fetch general statistics' });
+  }
+});
+
+// Route pour les statistiques spécifiques à l'agenda
+router.get('/agenda', async (req, res) => {
+  try {
+    const AgendaModelInstance = getModel(AgendaModel);
+    
+    // Statistiques générales
+    const totalEvents = await AgendaModelInstance.countDocuments();
+    const upcomingEvents = await AgendaModelInstance.countDocuments({
+      date_event_start: { $gte: new Date() }
+    });
+    const pastEvents = await AgendaModelInstance.countDocuments({
+      date_event_end: { $lt: new Date() }
+    });
+    
+    // Événements par mois (pour l'année en cours)
+    const currentYear = new Date().getFullYear();
+    const startOfYear = new Date(currentYear, 0, 1);
+    const endOfYear = new Date(currentYear, 11, 31, 23, 59, 59);
+    
+    const eventsByMonth = await AgendaModelInstance.aggregate([
+      {
+        $match: {
+          date_event_start: { $gte: startOfYear, $lte: endOfYear }
+        }
+      },
+      {
+        $group: {
+          _id: { $month: '$date_event_start' },
+          count: { $sum: 1 }
+        }
+      },
+      { $sort: { _id: 1 } }
+    ]);
+    
+    // Événements pour les 7 prochains jours
+    const today = new Date();
+    const nextWeek = new Date(today);
+    nextWeek.setDate(today.getDate() + 7);
+    
+    const upcomingWeekEvents = await AgendaModelInstance.find({
+      date_event_start: { $gte: today, $lte: nextWeek }
+    }).sort({ date_event_start: 1 });
+    
+    res.json({
+      summary: {
+        total: totalEvents,
+        upcoming: upcomingEvents,
+        past: pastEvents
+      },
+      byMonth: eventsByMonth,
+      upcomingWeek: upcomingWeekEvents
+    });
   } catch (error) {
     console.error('Error fetching general stats:', error);
     res.status(500).json({ error: 'Failed to fetch general statistics' });
