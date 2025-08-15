@@ -18,6 +18,7 @@ const getAllEmployees = async (req, res) => {
 const createEmployee = async (req, res) => {
     try {
         const { 
+            userID,
             nom_prenom, 
             date_naiss, 
             date_recrutement, 
@@ -35,6 +36,7 @@ const createEmployee = async (req, res) => {
         }
 
         const newEmployee = new employeeModel({
+            userID,
             nom_prenom, 
             date_naiss, 
             date_recrutement, 
@@ -72,6 +74,7 @@ const getEmployeeById = async (req, res) => {
 const updateEmployeeById = async (req, res) => {
     try {
         const { 
+            userID,
             nom_prenom, 
             date_naiss, 
             date_recrutement, 
@@ -86,6 +89,7 @@ const updateEmployeeById = async (req, res) => {
         const updatedEmployee = await employeeModel.findByIdAndUpdate(
             req.params.id,
             {
+                userID,
                 nom_prenom, 
                 date_naiss, 
                 date_recrutement, 
