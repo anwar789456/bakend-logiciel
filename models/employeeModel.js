@@ -1,6 +1,5 @@
 const mongoose = require('mongoose');
 const { getConnections } = require('../config/db');
-
 const employeeSchema = new mongoose.Schema({
     userID: String,
     nom_prenom: String,
@@ -13,11 +12,7 @@ const employeeSchema = new mongoose.Schema({
     image_profil: String,
     remuneration: String
 }, { timestamps: true });
-
-// This model will be initialized after the database connections are established
 let Employee;
-
-// Function to initialize the model with the appropriate connection
 const initModel = () => {
     const { conn2 } = getConnections();
     if (!Employee && conn2) {
@@ -25,10 +20,8 @@ const initModel = () => {
     }
     return Employee;
 };
-
-// Export both the model initialization function and the model
 module.exports = {
-    Employee: null, // Will be set by initModel
+    Employee: null,
     initModel: function() {
         const model = initModel();
         this.Employee = model;
