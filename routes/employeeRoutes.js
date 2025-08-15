@@ -9,10 +9,10 @@ const {
 } = require('../controllers/employeeController');
 
 // Define routes
-router.get('/admin/api/logiciel/employees', getAllEmployees);
-router.post('/admin/api/logiciel/employees', createEmployee);
-router.get('/admin/api/logiciel/employees/:id', getEmployeeById);
-router.put('/admin/api/logiciel/employees/:id', updateEmployeeById);
-router.delete('/admin/api/logiciel/employees/:id', deleteEmployeeById);
+router.get('/admin/api/logiciel/get-all-employees', getAllEmployees);
+router.post('/admin/api/logiciel/create-employees', createEmployee);
+router.get('/admin/api/logiciel/employees/get-employe-by-id/:id', getEmployeeById);
+router.put('/admin/api/logiciel/employees/update-employee/:id', updateEmployeeById);
+router.delete('/admin/api/logiciel/employees/delete-employee/:id', deleteEmployeeById);
 
 module.exports = router;
