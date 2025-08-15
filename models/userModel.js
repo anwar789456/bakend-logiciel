@@ -6,7 +6,8 @@ const userSchema = new mongoose.Schema({
     username: String,
     password: String,
     role: String,
-    img_url: String
+    img_url: String,
+    access_routes: [String]
 }, { timestamps: true });
 
 // This model will be initialized after the database connections are established
