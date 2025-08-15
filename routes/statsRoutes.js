@@ -11,6 +11,7 @@ const TypeProduitModel = require('../models/typeProduitsModel');
 const CaisseModel = require('../models/caisseModel');
 const UserModel = require('../models/userModel');
 const DemandeCongeModel = require('../models/demandeCongeModel');
+const EmployeeModel = require('../models/employeeModel');
 
 // Helper function to get the actual model from the module
 function getModel(modelModule) {
@@ -44,6 +45,9 @@ function getModel(modelModule) {
   if (modelModule && modelModule.DemandeConge) {
     return modelModule.DemandeConge;
   }
+  if (modelModule && modelModule.Employee) {
+    return modelModule.Employee;
+  }
   return modelModule;
 }
 
@@ -56,6 +60,7 @@ router.get('/general', async (req, res) => {
     const DevisCompteurModelInstance = getModel(DevisCompteurModel);
     const MessagerieModelInstance = getModel(MessagerieModel);
     const DemandeCongeModelInstance = getModel(DemandeCongeModel);
+    const EmployeeModelInstance = getModel(EmployeeModel);
 
     const stats = {
       products: {
@@ -83,6 +88,12 @@ router.get('/general', async (req, res) => {
         pending: await DemandeCongeModelInstance.countDocuments({ decisionResponsable: 'En attente' }),
         approved: await DemandeCongeModelInstance.countDocuments({ decisionResponsable: 'Approuvé' }),
         rejected: await DemandeCongeModelInstance.countDocuments({ decisionResponsable: 'Rejeté' })
+      },
+      employees: {
+        total: await EmployeeModelInstance.countDocuments(),
+        recent: await EmployeeModelInstance.countDocuments({
+          date_recrutement: { $gte: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000) }
+        })
       }
     };
 
@@ -90,6 +101,51 @@ router.get('/general', async (req, res) => {
   } catch (error) {
     console.error('Error fetching general stats:', error);
     res.status(500).json({ error: 'Failed to fetch general statistics' });
+  }
+});
+
+// Route pour les statistiques spécifiques aux employés
+router.get('/employees', async (req, res) => {
+  try {
+    const EmployeeModelInstance = getModel(EmployeeModel);
+    
+    // Statistiques générales
+    const totalEmployees = await EmployeeModelInstance.countDocuments();
+    
+    // Statistiques par type de contrat
+    const employeesByContractType = await EmployeeModelInstance.aggregate([
+      { $group: { _id: '$type_contrat', count: { $sum: 1 } } },
+      { $sort: { count: -1 } }
+    ]);
+    
+    // Statistiques par poste
+    const employeesByPosition = await EmployeeModelInstance.aggregate([
+      { $group: { _id: '$nom_post', count: { $sum: 1 } } },
+      { $sort: { count: -1 } }
+    ]);
+    
+    // Statistiques par année de recrutement
+    const employeesByRecruitmentYear = await EmployeeModelInstance.aggregate([
+      {
+        $group: {
+          _id: { $year: '$date_recrutement' },
+          count: { $sum: 1 }
+        }
+      },
+      { $sort: { _id: 1 } }
+    ]);
+    
+    res.json({
+      summary: {
+        total: totalEmployees
+      },
+      byContractType: employeesByContractType,
+      byPosition: employeesByPosition,
+      byRecruitmentYear: employeesByRecruitmentYear
+    });
+  } catch (error) {
+    console.error('Error fetching employee stats:', error);
+    res.status(500).json({ error: 'Failed to fetch employee statistics' });
   }
 });
 

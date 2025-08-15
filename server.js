@@ -18,6 +18,7 @@ const TypeProduitRouter = require('./routes/typeProduitRoutes');
 const CaisseRouter = require('./routes/caisseRoutes');
 const UserRouter = require('./routes/userRoutes');
 const DemandeCongeRouter = require('./routes/demandeCongeRoutes');
+const EmployeeRouter = require('./routes/employeeRoutes');
 const initChangeStreams = require('./initChangeStreams');
 
 const app = express();
@@ -74,6 +75,7 @@ app.use(TypeProduitRouter);
 app.use(CaisseRouter);
 app.use(UserRouter);
 app.use(DemandeCongeRouter);
+app.use(EmployeeRouter);
 
 // Start Server
 server.listen(PORT, '0.0.0.0', () => {
