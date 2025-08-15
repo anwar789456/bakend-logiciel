@@ -9,7 +9,6 @@ const demandeCongeSchema = new mongoose.Schema({
         startDate: { type: Date },
         endDate: { type: Date }
     },
-    dateEffectuerConge: { type: Date },
     decisionResponsable: String
 }, { timestamps: true });
 
