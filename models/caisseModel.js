@@ -4,6 +4,7 @@ const { getConnections } = require('../config/db');
 const caisseSchema = new mongoose.Schema({
     name: String,
     montant: String,
+    solde_depart: String,
     note: String,
     datetransaction: { type: Date },
     transactiontype: String

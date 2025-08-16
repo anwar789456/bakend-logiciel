@@ -21,7 +21,7 @@ const getAllCaisseTransactions = async (req, res) => {
 // Create a new caisse transaction
 const createCaisseTransaction = async (req, res) => {
     try {
-        const { name, montant, transactiontype, datetransaction } = req.body;
+        const { name, montant, solde_depart, transactiontype, datetransaction } = req.body;
         
         if (!name || !montant || !transactiontype) {
             return res.status(400).json({ message: 'Name, montant, and transactiontype are required' });
@@ -31,6 +31,7 @@ const createCaisseTransaction = async (req, res) => {
         const newTransaction = new Caisse({
             name,
             montant,
+            solde_depart,
             transactiontype,
             datetransaction: datetransaction || Date.now()
         });
@@ -65,7 +66,7 @@ const getCaisseTransactionById = async (req, res) => {
 const updateCaisseTransactionById = async (req, res) => {
     try {
         const { id } = req.params;
-        const { name, montant, transactiontype, datetransaction } = req.body;
+        const { name, montant, solde_depart, transactiontype, datetransaction } = req.body;
         
         if (!name || !montant || !transactiontype) {
             return res.status(400).json({ message: 'Name, montant, and transactiontype are required' });
@@ -74,7 +75,7 @@ const updateCaisseTransactionById = async (req, res) => {
         const Caisse = getCaisseModel();
         const updatedTransaction = await Caisse.findByIdAndUpdate(
             id,
-            { name, montant, transactiontype, datetransaction },
+            { name, montant, solde_depart, transactiontype, datetransaction },
             { new: true, runValidators: true }
         );
         
