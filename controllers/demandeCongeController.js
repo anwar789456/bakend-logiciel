@@ -1,11 +1,9 @@
 const { DemandeConge, initModel } = require('../models/demandeCongeModel');
 
-// Initialize the model
-const demandeCongeModel = initModel();
-
 // Get all demande conge records
 const getAllDemandeConges = async (req, res) => {
     try {
+        const demandeCongeModel = initModel();
         const demandeConges = await demandeCongeModel.find();
         res.status(200).json(demandeConges);
     } catch (error) {
@@ -17,6 +15,7 @@ const getAllDemandeConges = async (req, res) => {
 // Create a new demande conge
 const createDemandeConge = async (req, res) => {
     try {
+        const demandeCongeModel = initModel();
         const { username, job, motif, dateRange, decisionResponsable } = req.body;
 
         // Validate required fields
@@ -43,6 +42,7 @@ const createDemandeConge = async (req, res) => {
 // Get a demande conge by ID
 const getDemandeCongeById = async (req, res) => {
     try {
+        const demandeCongeModel = initModel();
         const demandeConge = await demandeCongeModel.findById(req.params.id);
         if (!demandeConge) {
             return res.status(404).json({ message: 'Demande conge not found' });
@@ -57,6 +57,7 @@ const getDemandeCongeById = async (req, res) => {
 // Update a demande conge by ID
 const updateDemandeCongeById = async (req, res) => {
     try {
+        const demandeCongeModel = initModel();
         const { username, job, motif, dateRange, decisionResponsable } = req.body;
         
         // Find the demande conge to update
@@ -86,6 +87,7 @@ const updateDemandeCongeById = async (req, res) => {
 // Delete a demande conge by ID
 const deleteDemandeCongeById = async (req, res) => {
     try {
+        const demandeCongeModel = initModel();
         const demandeConge = await demandeCongeModel.findByIdAndDelete(req.params.id);
         if (!demandeConge) {
             return res.status(404).json({ message: 'Demande conge not found' });
