@@ -9,6 +9,10 @@ const demandeCongeSchema = new mongoose.Schema({
         startDate: { type: Date },
         endDate: { type: Date }
     },
+    dateRangePartiel: {
+        startDate: { type: Date },
+        endDate: { type: Date }
+    },
     responsable: String,
     date_effectuer: Date,
     decisionResponsable: String
