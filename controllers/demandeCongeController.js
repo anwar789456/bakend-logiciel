@@ -16,7 +16,7 @@ const getAllDemandeConges = async (req, res) => {
 const createDemandeConge = async (req, res) => {
     try {
         const demandeCongeModel = initModel();
-        const { username, job, motif, dateRange, decisionResponsable } = req.body;
+        const { username, job, motif, dateRange, decisionResponsable, responsable, date_effectuer } = req.body;
 
         // Validate required fields
         if (!username || !job || !motif || !dateRange || !dateRange.startDate || !dateRange.endDate) {
@@ -28,7 +28,9 @@ const createDemandeConge = async (req, res) => {
             job,
             motif,
             dateRange,
-            decisionResponsable: decisionResponsable || 'En attente' // Default value if not provided
+            responsable,
+            date_effectuer,
+            decisionResponsable
         });
 
         const savedDemandeConge = await newDemandeConge.save();
@@ -58,7 +60,7 @@ const getDemandeCongeById = async (req, res) => {
 const updateDemandeCongeById = async (req, res) => {
     try {
         const demandeCongeModel = initModel();
-        const { username, job, motif, dateRange, decisionResponsable } = req.body;
+        const { username, job, motif, dateRange, decisionResponsable, responsable, date_effectuer } = req.body;
         
         // Find the demande conge to update
         const demandeConge = await demandeCongeModel.findById(req.params.id);
@@ -74,6 +76,8 @@ const updateDemandeCongeById = async (req, res) => {
             if (dateRange.startDate) demandeConge.dateRange.startDate = dateRange.startDate;
             if (dateRange.endDate) demandeConge.dateRange.endDate = dateRange.endDate;
         }
+        if (responsable) demandeConge.responsable = responsable;
+        if (date_effectuer) demandeConge.date_effectuer = date_effectuer;
         if (decisionResponsable) demandeConge.decisionResponsable = decisionResponsable;
 
         const updatedDemandeConge = await demandeConge.save();
