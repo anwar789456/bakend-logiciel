@@ -1,14 +1,14 @@
-const { initModel } = require('../models/devisCompteurModel');
+const { initModel } = require('../models/factureCompteurModel');
 
 // Get the current counter value
 const getCounter = async (req, res) => {
   try {
-    const DevisCompteur = initModel();
-    if (!DevisCompteur) throw new Error("Model not initialized");
+    const FactureCompteur = initModel();
+    if (!FactureCompteur) throw new Error("Model not initialized");
 
-    let counter = await DevisCompteur.findOne();
+    let counter = await FactureCompteur.findOne();
     if (!counter) {
-      counter = await DevisCompteur.create({ devisComptValue: '1', date: new Date() });
+      counter = await FactureCompteur.create({ factureComptValue: '1', date: new Date() });
     }
 
     res.status(200).json(counter);
@@ -21,17 +21,17 @@ const getCounter = async (req, res) => {
 // Increment the counter and return the new value
 const incrementCounter = async (req, res) => {
   try {
-    const DevisCompteur = initModel();
+    const FactureCompteur = initModel();
 
-    let counter = await DevisCompteur.findOne();
+    let counter = await FactureCompteur.findOne();
     
     // If no counter exists, create one
     if (!counter) {
-      counter = await DevisCompteur.create({ devisComptValue: '1', date: new Date() });
+      counter = await FactureCompteur.create({ factureComptValue: '1', date: new Date() });
     } else {
       // Increment the counter
-      const currentValue = parseInt(counter.devisComptValue, 10);
-      counter.devisComptValue = (currentValue + 1).toString();
+      const currentValue = parseInt(counter.factureComptValue, 10);
+      counter.factureComptValue = (currentValue + 1).toString();
       counter.date = new Date();
       await counter.save();
     }
@@ -46,26 +46,26 @@ const incrementCounter = async (req, res) => {
 // Update the counter to a specific value
 const updateCounter = async (req, res) => {
   try {
-    const DevisCompteur = initModel();
+    const FactureCompteur = initModel();
 
-    const { devisComptValue } = req.body;
-
-    if (!devisComptValue || devisComptValue.trim() === '') {
+    const { value } = req.body;
+    
+    if (!value || value.trim() === '') {
       return res.status(400).json({ message: 'Invalid counter value. Value cannot be empty.' });
     }
     
-    let counter = await DevisCompteur.findOne();
+    let counter = await FactureCompteur.findOne();
     
     // If no counter exists, create one
     if (!counter) {
-      counter = await DevisCompteur.create({
-        devisComptValue: devisComptValue,
-        datedeviscompt: new Date() // Fixed: use correct field name
+      counter = await FactureCompteur.create({ 
+        factureComptValue: value, 
+        datefacturecompt: new Date()
       });
     } else {
       // Update the counter
-      counter.devisComptValue = devisComptValue;
-      counter.datedeviscompt = new Date(); // Fixed: use correct field name
+      counter.factureComptValue = value;
+      counter.datefacturecompt = new Date();
       await counter.save();
     }
     

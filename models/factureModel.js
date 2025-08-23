@@ -1,8 +1,8 @@
 const mongoose = require('mongoose');
 const { getConnections } = require('../config/db');
 
-const devisSchema = new mongoose.Schema({
-  // Type de devis
+const factureSchema = new mongoose.Schema({
+  // Type de facture
   clientType: { type: String, enum: ['particulier', 'entreprise'], default: 'particulier' },
 
   // Informations client
@@ -16,12 +16,11 @@ const devisSchema = new mongoose.Schema({
   rc: { type: String }, // Registre de Commerce
   taxId: { type: String }, // Identifiant fiscal
 
-  // Informations devis
-  devisNumber: { type: String, unique: true },
+  // Informations facture
+  factureNumber: { type: String, unique: true },
   date: { type: Date, default: Date.now },
-  validityDate: { type: Date },
   
-  // Articles du devis
+  // Articles de la facture
   items: [{
     quantity: { type: Number, required: true },
     description: { type: String, required: true },
@@ -40,19 +39,15 @@ const devisSchema = new mongoose.Schema({
   totalTTC: { type: Number, required: true }, // Total TTC (avec TVA)
   totalAmount: { type: Number, required: true }, // Montant final (TTC pour entreprise, HT pour particulier)
   
-  // Conditions
-  deliveryDelay: { type: String, default: '45 jours à partir de la date de confirmation' },
-  paymentTerms: { type: String, default: 'Tous les paiements sont effectués avant la livraison au showroom' },
-  deliveryCondition: { type: String, default: 'LA LIVRAISON EST GRATUITE UNIQUEMENT SUR LE GRAND TUNIS (TUNIS, ARIANA, MANOUBA, BEN AROUS)' },
-  
   // Statut et suivi
-  status: { type: String, enum: ['draft', 'sent', 'accepted', 'rejected', 'expired'], default: 'draft' },
+  status: { type: String, enum: ['paid', 'unpaid', 'partial', 'cancelled'], default: 'unpaid' },
+  paymentDate: { type: Date },
   notes: { type: String },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now }
 });
 
-let Devis;
+let Facture;
 
 const initModel = () => {
     const { conn2 } = getConnections();
@@ -60,10 +55,10 @@ const initModel = () => {
         console.warn("⚠️ Database connection is not initialized yet. Make sure connectDB() has been called before this.");
         return undefined;
     }
-    if (!Devis) {
-        Devis = conn2.model('Devis', devisSchema, "devis");
+    if (!Facture) {
+        Facture = conn2.model('Facture', factureSchema, "factures");
     }
-    return Devis;
+    return Facture;
 };
 
 module.exports = { initModel };
