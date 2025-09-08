@@ -6,7 +6,10 @@ const {
   getBonLivraisonById,
   updateBonLivraison,
   deleteBonLivraison,
-  generateBonLivraisonPDF
+  generateBonLivraisonPDF,
+  uploadLogo,
+  getLogo,
+  upload
 } = require('../controllers/bonLivraisonController');
 
 // Routes CRUD pour les bons de livraison
@@ -18,5 +21,11 @@ router.delete('/delete-bonlivraison/:id', deleteBonLivraison);
 
 // Route pour générer le PDF
 router.get('/bonlivraison-pdf/:id', generateBonLivraisonPDF);
+
+// Upload logo for bon de livraison
+router.post('/bonlivraison/upload-logo', upload.single('logo'), uploadLogo);
+
+// Get uploaded logo
+router.get('/bonlivraison/logo/:logoName', getLogo);
 
 module.exports = router;

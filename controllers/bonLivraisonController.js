@@ -4,6 +4,40 @@ const PDFDocument = require('pdfkit');
 const QRCode = require('qrcode');
 const fs = require('fs');
 const path = require('path');
+const multer = require('multer');
+
+// Configuration multer pour l'upload de logos
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    const uploadDir = path.join(__dirname, '..', 'uploads', 'logos');
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+    cb(null, uploadDir);
+  },
+  filename: function (req, file, cb) {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, 'logo-' + uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
+const upload = multer({
+  storage: storage,
+  limits: {
+    fileSize: 5 * 1024 * 1024 // 5MB limit
+  },
+  fileFilter: function (req, file, cb) {
+    const allowedTypes = /jpeg|jpg|png|gif|bmp|webp/;
+    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+    const mimetype = allowedTypes.test(file.mimetype);
+    
+    if (mimetype && extname) {
+      return cb(null, true);
+    } else {
+      cb(new Error('Seules les images sont autorisées (jpeg, jpg, png, gif, bmp, webp)'));
+    }
+  }
+});
 
 // Fonction pour générer le numéro de bon de livraison
 const generateBonLivraisonNumber = async () => {
@@ -15,23 +49,33 @@ const generateBonLivraisonNumber = async () => {
   const currentYear = new Date().getFullYear().toString().slice(-2);
   
   try {
-    const lastCompteur = await BonLivraisonCompteur.findOne().sort({ datebonlivraisoncompt: -1 });
-    
-    let nextNumber;
-    if (lastCompteur) {
-      const lastNumber = parseInt(lastCompteur.bonLivraisonComptValue.split('/')[0]);
-      nextNumber = String(lastNumber + 1).padStart(3, '0');
-    } else {
-      nextNumber = '001';
+    // Get current counter
+    let counter = await BonLivraisonCompteur.findOne();
+    if (!counter) {
+      // Create initial counter if it doesn't exist
+      counter = await BonLivraisonCompteur.create({
+        bonLivraisonComptValue: '1',
+        datebonlivraisoncompt: new Date()
+      });
     }
-    
-    const bonLivraisonNumber = `${nextNumber}/${currentYear}`;
-    
-    const newCompteur = new BonLivraisonCompteur({
-      bonLivraisonComptValue: bonLivraisonNumber
-    });
-    
-    await newCompteur.save();
+
+    // Use the current counter value as the next bon livraison number
+    let nextNumber = parseInt(counter.bonLivraisonComptValue, 10);
+
+    // Check if the generated number already exists (extra safety)
+    const BonLivraison = initBonLivraison();
+    let bonLivraisonNumber = `${nextNumber}/${currentYear}`;
+    while (await BonLivraison.findOne({ bonLivraisonNumber })) {
+      nextNumber++;
+      bonLivraisonNumber = `${nextNumber}/${currentYear}`;
+    }
+
+    // Update counter to next number for the next bon livraison
+    counter.bonLivraisonComptValue = (nextNumber + 1).toString();
+    counter.datebonlivraisoncompt = new Date();
+    await counter.save();
+
+    console.log(`Generated bon livraison number: ${bonLivraisonNumber}`);
     return bonLivraisonNumber;
   } catch (error) {
     console.error('Error generating bon de livraison number:', error);
@@ -170,8 +214,16 @@ const generateBonLivraisonPDF = async (req, res) => {
       margin: 1,
     });
 
-    // Logo et en-tête
-    const imagePath = path.join(__dirname, '..', 'images', 'image.png');
+    // Logo - utiliser le logo personnalisé ou le logo par défaut
+    let imagePath;
+    console.log('BonLivraison customLogo:', bonLivraison.customLogo);
+    if (bonLivraison.customLogo && fs.existsSync(path.join(__dirname, '..', 'uploads', 'logos', bonLivraison.customLogo))) {
+      imagePath = path.join(__dirname, '..', 'uploads', 'logos', bonLivraison.customLogo);
+      console.log('Using custom logo:', imagePath);
+    } else {
+      imagePath = path.join(__dirname, '..', 'images', 'image.png');
+      console.log('Using default logo:', imagePath);
+    }
     
     // Logo SAMET HOME
     doc.image(imagePath, 20, 40, { width: 180 });
@@ -249,7 +301,8 @@ const generateBonLivraisonPDF = async (req, res) => {
       
       // Description
       doc.text(item.description, currentX + 2, rowY + 4, {
-        width: colWidths[1] - 4
+        width: colWidths[1] - 4,
+        align: "center"
       });
       currentX += colWidths[1];
       
@@ -317,11 +370,51 @@ const generateBonLivraisonPDF = async (req, res) => {
   }
 };
 
+// Upload logo for bon de livraison
+const uploadLogo = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: "Aucun fichier fourni" });
+    }
+
+    const logoPath = req.file.filename;
+    console.log('Logo uploaded for bon de livraison:', logoPath);
+    res.json({ 
+      message: "Logo uploadé avec succès",
+      logoPath: logoPath,
+      originalName: req.file.originalname
+    });
+  } catch (error) {
+    console.error('Error uploading logo:', error);
+    res.status(500).json({ message: "Erreur lors de l'upload du logo", error: error.message });
+  }
+};
+
+// Get uploaded logo
+const getLogo = async (req, res) => {
+  try {
+    const logoName = req.params.logoName;
+    const logoPath = path.join(__dirname, '..', 'uploads', 'logos', logoName);
+    
+    if (!fs.existsSync(logoPath)) {
+      return res.status(404).json({ message: "Logo non trouvé" });
+    }
+    
+    res.sendFile(logoPath);
+  } catch (error) {
+    console.error('Error getting logo:', error);
+    res.status(500).json({ message: "Erreur lors de la récupération du logo", error: error.message });
+  }
+};
+
 module.exports = {
   createBonLivraison,
   getAllBonLivraisons,
   getBonLivraisonById,
   updateBonLivraison,
   deleteBonLivraison,
-  generateBonLivraisonPDF
+  generateBonLivraisonPDF,
+  uploadLogo,
+  getLogo,
+  upload
 };

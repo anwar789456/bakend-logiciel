@@ -8,7 +8,10 @@ const {
   createDevis,
   updateDevisById, 
   deleteDevisById,
-  generateDevisPDF
+  generateDevisPDF,
+  uploadLogo,
+  getLogo,
+  upload
 } = require("../controllers/devisController");
 
 // Get all devis items
@@ -28,5 +31,11 @@ router.delete("/delete-devis/:id", deleteDevisById);
 
 // Generate PDF for devis
 router.get("/devis-pdf/:id", generateDevisPDF);
+
+// Upload logo for devis
+router.post("/upload-logo", upload.single('logo'), uploadLogo);
+
+// Get uploaded logo
+router.get("/logo/:logoName", getLogo);
 
 module.exports = router;

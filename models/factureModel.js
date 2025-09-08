@@ -39,8 +39,11 @@ const factureSchema = new mongoose.Schema({
   totalTTC: { type: Number, required: true }, // Total TTC (avec TVA)
   totalAmount: { type: Number, required: true }, // Montant final (TTC pour entreprise, HT pour particulier)
   
+  // Logo personnalisé
+  customLogo: { type: String }, // Chemin vers le logo personnalisé
+  
   // Statut et suivi
-  status: { type: String, enum: ['paid', 'unpaid', 'partial', 'cancelled'], default: 'unpaid' },
+  status: { type: String, enum: ['pending', 'confirmed', 'cancelled', 'paid', 'unpaid', 'partial'], default: 'pending' },
   paymentDate: { type: Date },
   notes: { type: String },
   createdAt: { type: Date, default: Date.now },

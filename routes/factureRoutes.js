@@ -8,7 +8,10 @@ const {
   createFacture,
   updateFactureById, 
   deleteFactureById,
-  generateFacturePDF
+  generateFacturePDF,
+  uploadLogo,
+  getLogo,
+  upload
 } = require("../controllers/factureController");
 
 // Get all facture items
@@ -28,5 +31,11 @@ router.delete("/delete-facture/:id", deleteFactureById);
 
 // Generate PDF for facture
 router.get("/facture-pdf/:id", generateFacturePDF);
+
+// Upload logo for facture
+router.post('/facture/upload-logo', upload.single('logo'), uploadLogo);
+
+// Get uploaded logo
+router.get('/facture/logo/:logoName', getLogo);
 
 module.exports = router;

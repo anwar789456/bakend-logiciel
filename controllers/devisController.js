@@ -4,6 +4,40 @@ const PDFDocument = require('pdfkit');
 const QRCode = require('qrcode');
 const fs = require('fs');
 const path = require('path');
+const multer = require('multer');
+
+// Configuration multer pour l'upload de logos
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    const uploadDir = path.join(__dirname, '..', 'uploads', 'logos');
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+    cb(null, uploadDir);
+  },
+  filename: function (req, file, cb) {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, 'logo-' + uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
+const upload = multer({
+  storage: storage,
+  limits: {
+    fileSize: 5 * 1024 * 1024 // 5MB limit
+  },
+  fileFilter: function (req, file, cb) {
+    const allowedTypes = /jpeg|jpg|png|gif|bmp|webp/;
+    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+    const mimetype = allowedTypes.test(file.mimetype);
+    
+    if (mimetype && extname) {
+      return cb(null, true);
+    } else {
+      cb(new Error('Seules les images sont autorisées (jpeg, jpg, png, gif, bmp, webp)'));
+    }
+  }
+});
 
 // Helper function to get initialized Devis model
 const getDevisModel = () => {
@@ -38,17 +72,8 @@ const generateDevisNumber = async () => {
       devisNumber: { $regex: `^\\d+/${yearSuffix}$` }
     }).sort({ devisNumber: -1 }).limit(1);
 
+    // Use the current counter value as the next devis number
     let nextNumber = parseInt(counter.devisComptValue, 10);
-
-    if (existingDevis.length > 0) {
-      const lastDevisNumber = existingDevis[0].devisNumber;
-      const lastNumber = parseInt(lastDevisNumber.split('/')[0], 10);
-
-      // If existing devis number is higher than counter, sync counter
-      if (lastNumber >= nextNumber) {
-        nextNumber = lastNumber + 1;
-      }
-    }
 
     // Check if the generated number already exists (extra safety)
     let devisNumber = `${nextNumber}/${yearSuffix}`;
@@ -57,7 +82,7 @@ const generateDevisNumber = async () => {
       devisNumber = `${nextNumber}/${yearSuffix}`;
     }
 
-    // Update counter to next number
+    // Update counter to next number for the next devis
     counter.devisComptValue = (nextNumber + 1).toString();
     counter.datedeviscompt = new Date();
     await counter.save();
@@ -331,8 +356,13 @@ const generateEntreprisePDF = async (devis, res) => {
     margin: 1,
   });
 
-  // Logo et en-tête
-  const imagePath = path.join(__dirname, '..', 'images', 'image.png');
+  // Logo et en-tête - utiliser le logo personnalisé ou le logo par défaut
+  let imagePath;
+  if (devis.customLogo && fs.existsSync(path.join(__dirname, '..', 'uploads', 'logos', devis.customLogo))) {
+    imagePath = path.join(__dirname, '..', 'uploads', 'logos', devis.customLogo);
+  } else {
+    imagePath = path.join(__dirname, '..', 'images', 'image.png');
+  }
 
   // En-tête société
   doc.fontSize(8).fillColor("#000").text("SATRACO s.a.r.l - IU:1280963K", 20, 20);
@@ -345,7 +375,7 @@ const generateEntreprisePDF = async (devis, res) => {
 
   // Informations client entreprise (à droite)
   let clientStartY = 50;
-  doc.font("Helvetica-Bold").fontSize(10);
+  doc.font("Helvetica-Bold").fontSize(9);
 
   doc.text("CLIENT : ", 400, clientStartY);
   doc.font("Helvetica").text(devis.companyName || devis.clientName, 460, clientStartY);
@@ -474,26 +504,35 @@ const generateEntreprisePDF = async (devis, res) => {
     rowY += rowHeight;
   });
 
-  // Total dans un cadre
+  // Ligne de total séparée et alignée à droite
   rowY += 20;
-  const totalBoxHeight = 40;
-
-  doc.rect(startX + tableWidth - 150, rowY, 150, totalBoxHeight).stroke();
-
-  doc.fontSize(11).font("Helvetica-Bold").fillColor("#000");
-  doc.text("Total", startX + tableWidth - 148, rowY + 8, {
-    width: 146,
+  const totalRowHeight = 25;
+  const totalBoxWidth = 200;
+  
+  // Dessiner le cadre du total aligné à droite
+  const totalBoxX = startX + tableWidth - totalBoxWidth;
+  doc.rect(totalBoxX, rowY, totalBoxWidth, totalRowHeight).stroke();
+  
+  // Ligne verticale pour séparer "Total" du montant
+  doc.moveTo(totalBoxX + totalBoxWidth - 80, rowY).lineTo(totalBoxX + totalBoxWidth - 80, rowY + totalRowHeight).stroke();
+  
+  // Texte "Total" à gauche
+  doc.fontSize(10).font("Helvetica-Bold").fillColor("#000");
+  doc.text("Total", totalBoxX + 2, rowY + 8, {
+    width: totalBoxWidth - 82,
     align: "center",
   });
-
-  doc.fontSize(14).font("Helvetica-Bold").fillColor("#000");
-  doc.text(`# ${devis.totalAmount.toFixed(3)}`, startX + tableWidth - 148, rowY + 22, {
-    width: 146,
+  
+  // Montant total à droite
+  doc.text(`${devis.totalAmount.toFixed(3)}`, totalBoxX + totalBoxWidth - 78, rowY + 8, {
+    width: 76,
     align: "center",
   });
+  
+  rowY += totalRowHeight;
 
   // Conditions de livraison
-  rowY += totalBoxHeight + 40;
+  rowY += 40;
   doc.fontSize(10).fillColor("#000");
   doc.text("LA LIVRAISON EST GRATUITE UNIQUEMENT SUR LE GRAND TUNIS (TUNIS, ARIANA, MANOUBA, BEN AROUS)", 0, rowY, {
     width: doc.page.width,
@@ -538,8 +577,13 @@ const generateParticulierPDF = async (devis, res) => {
     margin: 1,
   });
 
-  // image
-  const imagePath = path.join(__dirname, '..', 'images', 'image.png');
+  // Logo - utiliser le logo personnalisé ou le logo par défaut
+  let imagePath;
+  if (devis.customLogo && fs.existsSync(path.join(__dirname, '..', 'uploads', 'logos', devis.customLogo))) {
+    imagePath = path.join(__dirname, '..', 'uploads', 'logos', devis.customLogo);
+  } else {
+    imagePath = path.join(__dirname, '..', 'images', 'image.png');
+  }
 
   // En-tête société
   doc.fontSize(8).fillColor("#000").text("SATRACO s.a.r.l - IU:1280963K", 20, 20, {
@@ -554,15 +598,15 @@ const generateParticulierPDF = async (devis, res) => {
 
   // Infos client
   let clientStartY = 50;
-  doc.font("Helvetica-Bold").fontSize(11);
+  doc.font("Helvetica-Bold").fontSize(9);
   doc.text("CLIENT : ", 400, clientStartY);
   doc.font("Helvetica").text(devis.clientName, 460, clientStartY);
 
   doc.font("Helvetica-Bold").text("ADRESSE : ", 400, clientStartY + 15);
   doc.font("Helvetica").text(devis.clientAddress, 460, clientStartY + 15);
 
-  doc.font("Helvetica-Bold").text("Téléphone : ", 400, clientStartY + 30);
-  doc.font("Helvetica").text(devis.clientPhone, 460, clientStartY + 30);
+  doc.font("Helvetica-Bold").text("Téléphone : ", 400, clientStartY + 36);
+  doc.font("Helvetica").text(devis.clientPhone, 460, clientStartY + 36);
 
   // Titre centré
   doc.fontSize(16).fillColor("#000");
@@ -629,6 +673,7 @@ const generateParticulierPDF = async (devis, res) => {
 
     doc.text(item.description, currentX + 2, rowY + 4, {
       width: colWidths[1] - 4,
+      align: "center",
     });
     currentX += colWidths[1];
 
@@ -671,28 +716,32 @@ const generateParticulierPDF = async (devis, res) => {
     rowY += rowHeight;
   });
 
-  // TOTAL AU COMPTANT dans un cadre comme le tableau
+  // Ligne de total séparée et alignée à droite
   rowY += 20;
-  const totalBoxHeight = 40;
-
-  // Dessiner le cadre du total
-  doc.rect(startX, rowY, tableWidth, totalBoxHeight).stroke();
-
-  // Texte "Total au comptant"
-  doc.fontSize(11).font("Helvetica-Bold").fillColor("#000");
-  doc.text("Total au comptant", startX + 2, rowY + 8, {
-    width: tableWidth - 4,
+  const totalRowHeight = 25;
+  const totalBoxWidth = 200;
+  
+  // Dessiner le cadre du total aligné à droite
+  const totalBoxX = startX + tableWidth - totalBoxWidth;
+  doc.rect(totalBoxX, rowY, totalBoxWidth, totalRowHeight).stroke();
+  
+  // Ligne verticale pour séparer "Total" du montant
+  doc.moveTo(totalBoxX + totalBoxWidth - 80, rowY).lineTo(totalBoxX + totalBoxWidth - 80, rowY + totalRowHeight).stroke();
+  
+  // Texte "Total" à gauche
+  doc.fontSize(10).font("Helvetica-Bold").fillColor("#000");
+  doc.text("Total", totalBoxX + 2, rowY + 8, {
+    width: totalBoxWidth - 82,
     align: "center",
   });
-
-  // Montant total avec devise DT
-  doc.fontSize(14).font("Helvetica-Bold").fillColor("#000");
-  doc.text(`${devis.totalAmount.toFixed(0)} DT`, startX + 2, rowY + 22, {
-    width: tableWidth - 4,
+  
+  // Montant total à droite
+  doc.text(`${devis.totalAmount.toFixed(3)}`, totalBoxX + totalBoxWidth - 78, rowY + 8, {
+    width: 76,
     align: "center",
   });
-
-  rowY += totalBoxHeight;
+  
+  rowY += totalRowHeight;
 
   // DÉLAIS DE LIVRAISON
   rowY += 40;
@@ -739,6 +788,42 @@ const generateParticulierPDF = async (devis, res) => {
   doc.end();
 };
 
+// Upload logo for devis
+const uploadLogo = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: "Aucun fichier fourni" });
+    }
+
+    const logoPath = req.file.filename;
+    res.json({ 
+      message: "Logo uploadé avec succès",
+      logoPath: logoPath,
+      originalName: req.file.originalname
+    });
+  } catch (error) {
+    console.error('Error uploading logo:', error);
+    res.status(500).json({ message: "Erreur lors de l'upload du logo", error: error.message });
+  }
+};
+
+// Get uploaded logo
+const getLogo = async (req, res) => {
+  try {
+    const logoName = req.params.logoName;
+    const logoPath = path.join(__dirname, '..', 'uploads', 'logos', logoName);
+    
+    if (!fs.existsSync(logoPath)) {
+      return res.status(404).json({ message: "Logo non trouvé" });
+    }
+    
+    res.sendFile(logoPath);
+  } catch (error) {
+    console.error('Error getting logo:', error);
+    res.status(500).json({ message: "Erreur lors de la récupération du logo", error: error.message });
+  }
+};
+
 
 module.exports = { 
   getAllDevisItems, 
@@ -746,5 +831,8 @@ module.exports = {
   createDevis,
   updateDevisById, 
   deleteDevisById,
-  generateDevisPDF
+  generateDevisPDF,
+  uploadLogo,
+  getLogo,
+  upload
 };

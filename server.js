@@ -13,6 +13,8 @@ const DevisRouter = require('./routes/devisRoutes');
 const DevisCompteurRouter = require('./routes/devisCompteurRouter');
 const FactureRouter = require('./routes/factureRoutes');
 const FactureCompteurRouter = require('./routes/factureCompteurRouter');
+const BonLivraisonCompteurRouter = require('./routes/bonLivraisonCompteurRouter');
+const RecuPaiementCompteurRouter = require('./routes/recuPaiementCompteurRouter');
 const BackupRouter = require('./routes/backupRoutes');
 const StatsRouter = require('./routes/statsRoutes');
 const AIAssistantRouter = require('./routes/aiAssistantRoutes');
@@ -24,6 +26,7 @@ const EmployeeRouter = require('./routes/employeeRoutes');
 const AgendaRouter = require('./routes/agendaRoutes');
 const BonLivraisonRouter = require('./routes/bonLivraisonRoutes');
 const RecuPaiementRouter = require('./routes/recuPaiementRoutes');
+const FicheCommandeRouter = require('./routes/ficheCommandeRoutes');
 const initChangeStreams = require('./initChangeStreams');
 
 const app = express();
@@ -72,12 +75,14 @@ app.use(ProductRouter);
 app.use(CommandeRouter);
 app.use(messageRouter);
 app.use('/admin/api/logiciel', DevisRouter);
-app.use('/admin/api/logiciel', DevisCompteurRouter);
+app.use(DevisCompteurRouter);
 app.use('/admin/api/logiciel', FactureRouter);
 app.use('/admin/api/logiciel', FactureCompteurRouter);
+app.use(BonLivraisonCompteurRouter);
+app.use(RecuPaiementCompteurRouter);
 app.use('/admin/api/logiciel/backup', BackupRouter);
 app.use('/admin/api/logiciel/stats', StatsRouter);
-app.use(AIAssistantRouter);
+app.use('/admin/api/logiciel/ai', AIAssistantRouter);
 app.use(TypeProduitRouter);
 app.use(CaisseRouter);
 app.use(UserRouter);
@@ -86,6 +91,7 @@ app.use(EmployeeRouter);
 app.use(AgendaRouter);
 app.use('/admin/api/logiciel', BonLivraisonRouter);
 app.use('/admin/api/logiciel', RecuPaiementRouter);
+app.use('/admin/api/logiciel/fichecommande', FicheCommandeRouter);
 
 // Start Server
 server.listen(PORT, '0.0.0.0', () => {

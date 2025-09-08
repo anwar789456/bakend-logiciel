@@ -4,6 +4,38 @@ const PDFDocument = require('pdfkit');
 const QRCode = require('qrcode');
 const fs = require('fs');
 const path = require('path');
+const multer = require('multer');
+
+// Configuration multer pour l'upload de logos
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    const uploadDir = path.join(__dirname, '..', 'uploads', 'logos');
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+    cb(null, uploadDir);
+  },
+  filename: function (req, file, cb) {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, 'recupaiement-logo-' + uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
+const fileFilter = (req, file, cb) => {
+  if (file.mimetype.startsWith('image/')) {
+    cb(null, true);
+  } else {
+    cb(new Error('Seuls les fichiers image sont autorisés'), false);
+  }
+};
+
+const upload = multer({
+  storage: storage,
+  limits: {
+    fileSize: 5 * 1024 * 1024 // 5MB max
+  },
+  fileFilter: fileFilter
+});
 
 // Fonction pour générer le numéro de reçu de paiement
 const generateRecuPaiementNumber = async () => {
@@ -15,24 +47,37 @@ const generateRecuPaiementNumber = async () => {
   const currentYear = new Date().getFullYear().toString().slice(-2);
   
   try {
-    const lastCompteur = await RecuPaiementCompteur.findOne().sort({ daterecupaiementcompt: -1 });
-    
-    let nextNumber;
-    if (lastCompteur) {
-      nextNumber = lastCompteur.recupaiementcompt + 1;
-    } else {
-      nextNumber = 1;
+    // Get current counter
+    let counter = await RecuPaiementCompteur.findOne();
+    if (!counter) {
+      // Create initial counter if it doesn't exist
+      counter = await RecuPaiementCompteur.create({
+        recupaiementcompt: 1,
+        daterecupaiementcompt: new Date()
+      });
     }
 
-    const newCompteur = new RecuPaiementCompteur({
-      daterecupaiementcompt: new Date(),
-      recupaiementcompt: nextNumber
-    });
+    // Use the current counter value as the next recu paiement number
+    let nextNumber = counter.recupaiementcompt;
 
-    await newCompteur.save();
-    
+    // Check if the generated number already exists (extra safety)
+    const RecuPaiement = initRecuPaiement();
     const formattedNumber = nextNumber.toString().padStart(3, '0');
-    return `${formattedNumber}/${currentYear}`;
+    let recuPaiementNumber = `${formattedNumber}/${currentYear}`;
+    
+    while (await RecuPaiement.findOne({ recuPaiementNumber })) {
+      nextNumber++;
+      const newFormattedNumber = nextNumber.toString().padStart(3, '0');
+      recuPaiementNumber = `${newFormattedNumber}/${currentYear}`;
+    }
+
+    // Update counter to next number for the next recu paiement
+    counter.recupaiementcompt = nextNumber + 1;
+    counter.daterecupaiementcompt = new Date();
+    await counter.save();
+
+    console.log(`Generated recu paiement number: ${recuPaiementNumber}`);
+    return recuPaiementNumber;
   } catch (error) {
     console.error('Error generating recu paiement number:', error);
     throw error;
@@ -165,8 +210,13 @@ const generateRecuPaiementPDF = async (req, res) => {
     
     doc.pipe(res);
 
-    // Logo et en-tête
-    const imagePath = path.join(__dirname, '..', 'images', 'image.png');
+    // Logo - utiliser le logo personnalisé ou le logo par défaut
+    let imagePath;
+    if (recuPaiement.customLogo && fs.existsSync(path.join(__dirname, '..', 'uploads', 'logos', recuPaiement.customLogo))) {
+      imagePath = path.join(__dirname, '..', 'uploads', 'logos', recuPaiement.customLogo);
+    } else {
+      imagePath = path.join(__dirname, '..', 'images', 'image.png');
+    }
     
     // En-tête société
     doc.fontSize(8).fillColor("#000").text("SATRACO s.a.r.l - IU:1280963K", 20, 20);
@@ -262,7 +312,8 @@ const generateRecuPaiementPDF = async (req, res) => {
       
       // Description
       doc.text(item.description, currentX + 2, rowY + 4, {
-        width: colWidths[1] - 4
+        width: colWidths[1] - 4,
+        align: "center"
       });
       currentX += colWidths[1];
       
@@ -374,11 +425,50 @@ const generateRecuPaiementPDF = async (req, res) => {
   }
 };
 
+// Upload logo for recu paiement
+const uploadLogo = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: "Aucun fichier fourni" });
+    }
+
+    const logoPath = req.file.filename;
+    res.json({ 
+      message: "Logo uploadé avec succès",
+      logoPath: logoPath,
+      originalName: req.file.originalname
+    });
+  } catch (error) {
+    console.error('Error uploading logo:', error);
+    res.status(500).json({ message: "Erreur lors de l'upload du logo", error: error.message });
+  }
+};
+
+// Get uploaded logo
+const getLogo = async (req, res) => {
+  try {
+    const logoName = req.params.logoName;
+    const logoPath = path.join(__dirname, '..', 'uploads', 'logos', logoName);
+    
+    if (!fs.existsSync(logoPath)) {
+      return res.status(404).json({ message: "Logo non trouvé" });
+    }
+    
+    res.sendFile(logoPath);
+  } catch (error) {
+    console.error('Error getting logo:', error);
+    res.status(500).json({ message: "Erreur lors de la récupération du logo", error: error.message });
+  }
+};
+
 module.exports = {
   createRecuPaiement,
   getAllRecuPaiements,
   getRecuPaiementById,
   updateRecuPaiement,
   deleteRecuPaiement,
-  generateRecuPaiementPDF
+  generateRecuPaiementPDF,
+  uploadLogo,
+  getLogo,
+  upload
 };

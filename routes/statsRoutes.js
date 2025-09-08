@@ -14,6 +14,12 @@ const DemandeCongeModel = require('../models/demandeCongeModel');
 const EmployeeModel = require('../models/employeeModel');
 const AgendaModel = require('../models/agendaModel');
 
+// Import new models for financial stats
+const FactureModel = require('../models/factureModel');
+const BonLivraisonModel = require('../models/bonLivraisonModel');
+const FicheCommandeModel = require('../models/ficheCommandeModel');
+const RecuPaiementModel = require('../models/recuPaiementModel');
+
 // Helper function to get the actual model from the module
 function getModel(modelModule) {
   if (modelModule && typeof modelModule.initModel === 'function') {
@@ -51,6 +57,18 @@ function getModel(modelModule) {
   }
   if (modelModule && modelModule.Agenda) {
     return modelModule.Agenda;
+  }
+  if (modelModule && modelModule.Facture) {
+    return modelModule.Facture;
+  }
+  if (modelModule && modelModule.BonLivraison) {
+    return modelModule.BonLivraison;
+  }
+  if (modelModule && modelModule.FicheCommande) {
+    return modelModule.FicheCommande;
+  }
+  if (modelModule && modelModule.RecuPaiement) {
+    return modelModule.RecuPaiement;
   }
   return modelModule;
 }
@@ -547,6 +565,279 @@ router.get('/messages', async (req, res) => {
   } catch (error) {
     console.error('Error fetching messages data:', error);
     res.status(500).json({ error: 'Failed to fetch messages data' });
+  }
+});
+
+// Route pour les statistiques financières
+router.get('/financial', async (req, res) => {
+  try {
+    const FactureModelInstance = getModel(FactureModel);
+    const BonLivraisonModelInstance = getModel(BonLivraisonModel);
+    const FicheCommandeModelInstance = getModel(FicheCommandeModel);
+    const RecuPaiementModelInstance = getModel(RecuPaiementModel);
+    const DevisModelInstance = getModel(DevisModel);
+
+    // Calculate factures stats
+    const facturesStats = {
+      total: FactureModelInstance ? await FactureModelInstance.countDocuments() : 0,
+      paid: FactureModelInstance ? await FactureModelInstance.countDocuments({ status: 'paid' }) : 0,
+      revenue: 0
+    };
+
+    if (FactureModelInstance) {
+      try {
+        const factureRevenue = await FactureModelInstance.aggregate([
+          { $match: { status: 'paid' } },
+          { $group: { _id: null, total: { $sum: '$totalAmount' } } }
+        ]);
+        facturesStats.revenue = factureRevenue.length > 0 ? factureRevenue[0].total : 0;
+      } catch (error) {
+        console.log('Error calculating facture revenue:', error.message);
+      }
+    }
+
+    // Calculate bon livraison stats
+    const bonLivraisonStats = {
+      total: BonLivraisonModelInstance ? await BonLivraisonModelInstance.countDocuments() : 0,
+      delivered: BonLivraisonModelInstance ? await BonLivraisonModelInstance.countDocuments({ status: 'delivered' }) : 0
+    };
+
+    // Calculate fiche commande stats
+    const ficheCommandeStats = {
+      total: FicheCommandeModelInstance ? await FicheCommandeModelInstance.countDocuments() : 0,
+      recent: 0,
+      revenue: 0
+    };
+
+    if (FicheCommandeModelInstance) {
+      try {
+        ficheCommandeStats.recent = await FicheCommandeModelInstance.countDocuments({
+          _importDate: { $gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) }
+        });
+
+        const ficheRevenue = await FicheCommandeModelInstance.aggregate([
+          { $group: { _id: null, total: { $sum: { $toDouble: '$Mt_commande' } } } }
+        ]);
+        ficheCommandeStats.revenue = ficheRevenue.length > 0 ? ficheRevenue[0].total : 0;
+      } catch (error) {
+        console.log('Error calculating fiche commande stats:', error.message);
+      }
+    }
+
+    // Calculate recu paiement stats
+    const recuPaiementStats = {
+      total: RecuPaiementModelInstance ? await RecuPaiementModelInstance.countDocuments() : 0,
+      amount: 0
+    };
+
+    if (RecuPaiementModelInstance) {
+      try {
+        const recuAmount = await RecuPaiementModelInstance.aggregate([
+          { $group: { _id: null, total: { $sum: '$montantPaye' } } }
+        ]);
+        recuPaiementStats.amount = recuAmount.length > 0 ? recuAmount[0].total : 0;
+      } catch (error) {
+        console.log('Error calculating recu paiement stats:', error.message);
+      }
+    }
+
+    // Calculate total revenue
+    const totalRevenue = facturesStats.revenue + ficheCommandeStats.revenue + recuPaiementStats.amount;
+
+    // Calculate conversion rates
+    const devisTotal = DevisModelInstance ? await DevisModelInstance.countDocuments() : 0;
+    const conversionRate = {
+      devisToFacture: facturesStats.total > 0 && devisTotal > 0 ? 
+        Math.round((facturesStats.total / devisTotal) * 100) : 0,
+      deliveryRate: bonLivraisonStats.total > 0 ? 
+        Math.round((bonLivraisonStats.delivered / bonLivraisonStats.total) * 100) : 0
+    };
+
+    const stats = {
+      totalRevenue,
+      factures: facturesStats,
+      bonLivraison: bonLivraisonStats,
+      ficheCommande: ficheCommandeStats,
+      recuPaiement: recuPaiementStats,
+      conversionRate,
+      averagePaymentDelay: 15 // Mock data - can be calculated from real payment dates
+    };
+
+    res.json(stats);
+  } catch (error) {
+    console.error('Error getting financial stats:', error);
+    res.status(500).json({ error: 'Erreur lors de la récupération des statistiques financières' });
+  }
+});
+
+// Route pour les données des factures avec filtres
+router.get('/factures', async (req, res) => {
+  try {
+    const FactureModelInstance = getModel(FactureModel);
+    if (!FactureModelInstance) {
+      return res.json([]);
+    }
+
+    const { search, status, dateFrom, dateTo, limit = 50, offset = 0 } = req.query;
+    
+    let query = {};
+    
+    if (search) {
+      query.$or = [
+        { numeroFacture: { $regex: search, $options: 'i' } },
+        { clientName: { $regex: search, $options: 'i' } },
+        { clientEmail: { $regex: search, $options: 'i' } }
+      ];
+    }
+    
+    if (status) {
+      query.status = status;
+    }
+    
+    if (dateFrom || dateTo) {
+      query.createdAt = {};
+      if (dateFrom) query.createdAt.$gte = new Date(dateFrom);
+      if (dateTo) query.createdAt.$lte = new Date(dateTo);
+    }
+
+    const factures = await FactureModelInstance.find(query)
+      .sort({ createdAt: -1 })
+      .limit(parseInt(limit))
+      .skip(parseInt(offset));
+
+    res.json(factures);
+  } catch (error) {
+    console.error('Error getting factures data:', error);
+    res.status(500).json({ error: 'Erreur lors de la récupération des données de factures' });
+  }
+});
+
+// Route pour les données des bons de livraison avec filtres
+router.get('/bonlivraison', async (req, res) => {
+  try {
+    const BonLivraisonModelInstance = getModel(BonLivraisonModel);
+    if (!BonLivraisonModelInstance) {
+      return res.json([]);
+    }
+
+    const { search, status, dateFrom, dateTo, limit = 50, offset = 0 } = req.query;
+    
+    let query = {};
+    
+    if (search) {
+      query.$or = [
+        { numeroBonLivraison: { $regex: search, $options: 'i' } },
+        { clientName: { $regex: search, $options: 'i' } },
+        { clientEmail: { $regex: search, $options: 'i' } }
+      ];
+    }
+    
+    if (status) {
+      query.status = status;
+    }
+    
+    if (dateFrom || dateTo) {
+      query.createdAt = {};
+      if (dateFrom) query.createdAt.$gte = new Date(dateFrom);
+      if (dateTo) query.createdAt.$lte = new Date(dateTo);
+    }
+
+    const bonLivraisons = await BonLivraisonModelInstance.find(query)
+      .sort({ createdAt: -1 })
+      .limit(parseInt(limit))
+      .skip(parseInt(offset));
+
+    res.json(bonLivraisons);
+  } catch (error) {
+    console.error('Error getting bon livraison data:', error);
+    res.status(500).json({ error: 'Erreur lors de la récupération des données de bons de livraison' });
+  }
+});
+
+// Route pour les données des fiches de commande avec filtres
+router.get('/fichecommande', async (req, res) => {
+  try {
+    const FicheCommandeModelInstance = getModel(FicheCommandeModel);
+    if (!FicheCommandeModelInstance) {
+      return res.json([]);
+    }
+
+    const { search, file, sheet, dateFrom, dateTo, limit = 50, offset = 0 } = req.query;
+    
+    let query = {};
+    
+    if (search) {
+      query.$or = [
+        { Client: { $regex: search, $options: 'i' } },
+        { Commande: { $regex: search, $options: 'i' } },
+        { _file: { $regex: search, $options: 'i' } }
+      ];
+    }
+    
+    if (file) {
+      query._file = file;
+    }
+    
+    if (sheet) {
+      query._sheet = sheet;
+    }
+    
+    if (dateFrom || dateTo) {
+      query._importDate = {};
+      if (dateFrom) query._importDate.$gte = new Date(dateFrom);
+      if (dateTo) query._importDate.$lte = new Date(dateTo);
+    }
+
+    const ficheCommandes = await FicheCommandeModelInstance.find(query)
+      .sort({ _importDate: -1 })
+      .limit(parseInt(limit))
+      .skip(parseInt(offset));
+
+    res.json(ficheCommandes);
+  } catch (error) {
+    console.error('Error getting fiche commande data:', error);
+    res.status(500).json({ error: 'Erreur lors de la récupération des données de fiches de commande' });
+  }
+});
+
+// Route pour les données des reçus de paiement avec filtres
+router.get('/recupaiement', async (req, res) => {
+  try {
+    const RecuPaiementModelInstance = getModel(RecuPaiementModel);
+    if (!RecuPaiementModelInstance) {
+      return res.json([]);
+    }
+
+    const { search, methodePaiement, dateFrom, dateTo, limit = 50, offset = 0 } = req.query;
+    
+    let query = {};
+    
+    if (search) {
+      query.$or = [
+        { numeroRecu: { $regex: search, $options: 'i' } },
+        { clientName: { $regex: search, $options: 'i' } }
+      ];
+    }
+    
+    if (methodePaiement) {
+      query.methodePaiement = methodePaiement;
+    }
+    
+    if (dateFrom || dateTo) {
+      query.createdAt = {};
+      if (dateFrom) query.createdAt.$gte = new Date(dateFrom);
+      if (dateTo) query.createdAt.$lte = new Date(dateTo);
+    }
+
+    const recuPaiements = await RecuPaiementModelInstance.find(query)
+      .sort({ createdAt: -1 })
+      .limit(parseInt(limit))
+      .skip(parseInt(offset));
+
+    res.json(recuPaiements);
+  } catch (error) {
+    console.error('Error getting recu paiement data:', error);
+    res.status(500).json({ error: 'Erreur lors de la récupération des données de reçus de paiement' });
   }
 });
 

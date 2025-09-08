@@ -88,9 +88,12 @@ const recuPaiementSchema = new mongoose.Schema({
     type: String,
     default: ''
   },
+  // Logo personnalisé
+  customLogo: { type: String }, // Chemin vers le logo personnalisé
+  
   status: {
     type: String,
-    enum: ['pending', 'paid', 'partial', 'cancelled'],
+    enum: ['pending', 'confirmed', 'cancelled', 'paid', 'partial'],
     default: 'pending'
   }
 }, {

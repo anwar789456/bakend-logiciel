@@ -3,6 +3,40 @@ const factureCompteurModel = require("../models/factureCompteurModel");
 const PDFDocument = require('pdfkit');
 const fs = require('fs');
 const path = require('path');
+const multer = require('multer');
+
+// Configuration multer pour l'upload de logos
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    const uploadDir = path.join(__dirname, '..', 'uploads', 'logos');
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+    cb(null, uploadDir);
+  },
+  filename: function (req, file, cb) {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, 'logo-' + uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
+const upload = multer({
+  storage: storage,
+  limits: {
+    fileSize: 5 * 1024 * 1024 // 5MB limit
+  },
+  fileFilter: function (req, file, cb) {
+    const allowedTypes = /jpeg|jpg|png|gif|bmp|webp/;
+    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+    const mimetype = allowedTypes.test(file.mimetype);
+    
+    if (mimetype && extname) {
+      return cb(null, true);
+    } else {
+      cb(new Error('Seules les images sont autorisées (jpeg, jpg, png, gif, bmp, webp)'));
+    }
+  }
+});
 
 // Helper function to get initialized Facture model
 const getFactureModel = () => {
@@ -37,17 +71,8 @@ const generateFactureNumber = async () => {
       factureNumber: { $regex: `^\\d+/${yearSuffix}$` }
     }).sort({ factureNumber: -1 }).limit(1);
 
+    // Use the current counter value as the next facture number
     let nextNumber = parseInt(counter.factureComptValue, 10);
-
-    if (existingFactures.length > 0) {
-      const lastFactureNumber = existingFactures[0].factureNumber;
-      const lastNumber = parseInt(lastFactureNumber.split('/')[0], 10);
-
-      // If existing facture number is higher than counter, sync counter
-      if (lastNumber >= nextNumber) {
-        nextNumber = lastNumber + 1;
-      }
-    }
 
     // Check if the generated number already exists (extra safety)
     let factureNumber = `${nextNumber}/${yearSuffix}`;
@@ -56,7 +81,7 @@ const generateFactureNumber = async () => {
       factureNumber = `${nextNumber}/${yearSuffix}`;
     }
 
-    // Update counter to next number
+    // Update counter to next number for the next facture
     counter.factureComptValue = (nextNumber + 1).toString();
     counter.datefacturecompt = new Date();
     await counter.save();
@@ -163,14 +188,14 @@ const createFacture = async (req, res) => {
 
     const totalHT = subtotal - totalDiscount;
 
-    // Calculate TVA for enterprises
+    // Calculate TVA for both particulier and entreprise
     const clientType = req.body.clientType || 'particulier';
-    const tvaRate = clientType === 'entreprise' ? (req.body.tvaRate || 19) : 0;
-    const tvaAmount = clientType === 'entreprise' ? (totalHT * tvaRate / 100) : 0;
+    const tvaRate = req.body.tvaRate || 19; // TVA pour tous les types de clients
+    const tvaAmount = totalHT * tvaRate / 100;
     const totalTTC = totalHT + tvaAmount;
 
-    // For particulier: totalAmount = totalHT, for entreprise: totalAmount = totalTTC
-    const totalAmount = clientType === 'entreprise' ? totalTTC : totalHT;
+    // totalAmount = totalTTC for both types
+    const totalAmount = totalTTC;
 
     const factureData = {
       ...req.body,
@@ -288,6 +313,7 @@ const generateFacturePDF = async (req, res) => {
 
     const PDFDocument = require("pdfkit");
     const path = require('path');
+    const fs = require('fs');
 
     const doc = new PDFDocument({ margin: 20, size: "A4" });
 
@@ -306,8 +332,16 @@ const generateFacturePDF = async (req, res) => {
     doc.text("GSM: 56834015", 20, 56);
     doc.text("E-Mail: design@samethome.com", 20, 68);
 
-    // Logo SAMET HOME
-    const imagePath = path.join(__dirname, '..', 'images', 'image.png');
+    // Logo - utiliser le logo personnalisé ou le logo par défaut
+    let imagePath;
+    console.log('Facture customLogo:', facture.customLogo);
+    if (facture.customLogo && fs.existsSync(path.join(__dirname, '..', 'uploads', 'logos', facture.customLogo))) {
+      imagePath = path.join(__dirname, '..', 'uploads', 'logos', facture.customLogo);
+      console.log('Using custom logo:', imagePath);
+    } else {
+      imagePath = path.join(__dirname, '..', 'images', 'image.png');
+      console.log('Using default logo:', imagePath);
+    }
     doc.image(imagePath, 20, 90, { width: 180 });
 
     // Client info at top right
@@ -388,6 +422,7 @@ const generateFacturePDF = async (req, res) => {
       // Description
       doc.text(item.description, currentX + 2, rowY + 4, {
         width: colWidths[1] - 4,
+        align: "center",
       });
       currentX += colWidths[1];
 
@@ -472,11 +507,51 @@ const generateFacturePDF = async (req, res) => {
   }
 };
 
+// Upload logo for facture
+const uploadLogo = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: "Aucun fichier fourni" });
+    }
+
+    const logoPath = req.file.filename;
+    console.log('Logo uploaded for facture:', logoPath);
+    res.json({ 
+      message: "Logo uploadé avec succès",
+      logoPath: logoPath,
+      originalName: req.file.originalname
+    });
+  } catch (error) {
+    console.error('Error uploading logo:', error);
+    res.status(500).json({ message: "Erreur lors de l'upload du logo", error: error.message });
+  }
+};
+
+// Get uploaded logo
+const getLogo = async (req, res) => {
+  try {
+    const logoName = req.params.logoName;
+    const logoPath = path.join(__dirname, '..', 'uploads', 'logos', logoName);
+    
+    if (!fs.existsSync(logoPath)) {
+      return res.status(404).json({ message: "Logo non trouvé" });
+    }
+    
+    res.sendFile(logoPath);
+  } catch (error) {
+    console.error('Error getting logo:', error);
+    res.status(500).json({ message: "Erreur lors de la récupération du logo", error: error.message });
+  }
+};
+
 module.exports = { 
   getAllFactureItems, 
   getFactureById,
   createFacture,
   updateFactureById, 
   deleteFactureById,
-  generateFacturePDF
+  generateFacturePDF,
+  uploadLogo,
+  getLogo,
+  upload
 };
