@@ -37,4 +37,14 @@ const updateProductById = async (req, res) => {
     }
 };
 
-module.exports = { getAllProductItems, deleteProductById, updateProductById };
+const addProduct = async (req, res) => {
+    try {
+        const newProduct = new Product(req.body);
+        const savedProduct = await newProduct.save();
+        res.status(201).json(savedProduct);
+    } catch (error) {
+        res.status(500).json({ message: "Error adding new product", error });
+    }
+};
+
+module.exports = { getAllProductItems, deleteProductById, updateProductById, addProduct };
