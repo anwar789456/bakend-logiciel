@@ -26,8 +26,19 @@ const factureSchema = new mongoose.Schema({
     description: { type: String, required: true },
     refColor: { type: String },
     unitPrice: { type: Number, required: true },
+    basePrice: { type: Number, default: 0 }, // Prix de base sans option
     discount: { type: Number, default: 0 },
-    total: { type: Number, required: true }
+    total: { type: Number, required: true },
+    tva: { type: Number, default: 19 }, // TVA du produit en %
+    optionTva: { type: Number, default: 19 }, // TVA de l'option en %
+    // Informations sur le produit et l'option sélectionnée
+    productId: { type: String },
+    reference: { type: String },
+    selectedOption: {
+      option_name: { type: String },
+      prix_option: { type: String },
+      tva: { type: Number, default: 19 } // TVA de l'option
+    }
   }],
   
   // Totaux

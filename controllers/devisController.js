@@ -425,83 +425,105 @@ const generateEntreprisePDF = async (devis, res) => {
   const startX = 20;
   const tableWidth = 555;
 
-  // Colonnes pour entreprise
-  const colWidths = [115, 180, 80, 80, 100]; // Description, Ref Color, Nombre d'unité, Prix, Total
-  const headers = ["Description", "Ref Color", "Nombre d'unité", "Prix", "Total"];
+  // Colonnes pour devis (sans TVA)
+  const colWidths = [60, 300, 95, 100]; // Quantité, Description, Prix Unitaire, Total
+  const headers = ["Quantité", "Description", "Prix Unitaire", "Total"];
 
   let currentX = startX;
 
-  // En-tête du tableau
-  doc.rect(startX, startY, tableWidth, 25).stroke();
-  doc.fontSize(9).fillColor("#000");
+  // Table header avec style gris
+  doc.fontSize(10).fillColor("#666666");
 
   headers.forEach((header, index) => {
     if (index < colWidths.length) {
       doc.text(header, currentX + 2, startY + 8, {
         width: colWidths[index] - 4,
-        align: "center",
+        align: index === 0 ? "left" : "center",
       });
       currentX += colWidths[index];
     }
   });
 
-  // Lignes verticales de l'en-tête
-  currentX = startX;
-  for (let i = 0; i < colWidths.length - 1; i++) {
-    currentX += colWidths[i];
-    doc.moveTo(currentX, startY).lineTo(currentX, startY + 25).stroke();
-  }
+  // Ligne de séparation sous l'en-tête
+  doc.strokeColor("#000000").lineWidth(1);
+  doc.moveTo(startX, startY + 25).lineTo(startX + tableWidth, startY + 25).stroke();
 
   // Lignes des articles
   let rowY = startY + 25;
   devis.items.forEach((item) => {
-    const rowHeight = 25;
-    doc.rect(startX, rowY, tableWidth, rowHeight).stroke();
+    const basePrice = parseFloat(item.basePrice) || parseFloat(item.unitPrice) || 0;
+    const optionPrice = item.selectedOption ? parseFloat(item.selectedOption.prix_option) || 0 : 0;
+    const quantity = parseFloat(item.quantity) || 1;
+    const discount = parseFloat(item.discount) || 0;
+    
+    // Calcul du prix après remise pour le produit de base
+    const basePriceAfterDiscount = basePrice * (1 - discount / 100);
+    const baseTotalAfterDiscount = quantity * basePriceAfterDiscount;
+
+    // Ligne principale du produit - sans bordures
     currentX = startX;
+    doc.fontSize(10).fillColor("#333333");
 
-    doc.fontSize(9).fillColor("#000");
-
-    // Description
-    doc.text(item.description, currentX + 2, rowY + 4, {
+    // Quantité
+    doc.text(item.quantity.toString(), currentX + 2, rowY + 8, {
       width: colWidths[0] - 4,
+      align: "center",
     });
     currentX += colWidths[0];
 
-    // Ref Color (colonne unique)
-    doc.text(item.refColor || '', currentX + 2, rowY + 8, {
+    // Description du produit
+    doc.text(item.description, currentX + 2, rowY + 8, {
       width: colWidths[1] - 4,
-      align: "center",
+      align: "left",
     });
     currentX += colWidths[1];
 
-    // Nombre d'unité
-    doc.text(item.quantity.toString(), currentX + 2, rowY + 8, {
+    // Prix unitaire du produit de base
+    doc.text(`${basePrice.toFixed(0)} DT`, currentX + 2, rowY + 8, {
       width: colWidths[2] - 4,
       align: "center",
     });
     currentX += colWidths[2];
 
-    // Prix
-    doc.text(`${item.unitPrice.toFixed(3)}`, currentX + 2, rowY + 8, {
+    // Total du produit de base
+    doc.text(`${baseTotalAfterDiscount.toFixed(0)} DT`, currentX + 2, rowY + 8, {
       width: colWidths[3] - 4,
       align: "center",
     });
-    currentX += colWidths[3];
 
-    // Total
-    doc.text(`${item.total.toFixed(3)}`, currentX + 2, rowY + 8, {
-      width: colWidths[4] - 4,
-      align: "center",
-    });
+    rowY += 25;
 
-    // Lignes verticales
-    currentX = startX;
-    for (let i = 0; i < colWidths.length - 1; i++) {
-      currentX += colWidths[i];
-      doc.moveTo(currentX, rowY).lineTo(currentX, rowY + rowHeight).stroke();
+    // Ligne séparée pour l'option si elle existe - sans bordures
+    if (item.selectedOption && optionPrice > 0) {
+      const optionTotal = quantity * optionPrice;
+      currentX = startX;
+      doc.fontSize(10).fillColor("#333333");
+      
+      // Quantité vide pour l'option
+      currentX += colWidths[0];
+      
+      // Description de l'option
+      doc.text(`(Option: ${item.selectedOption.option_name})`, currentX + 2, rowY + 8, {
+        width: colWidths[1] - 4,
+        align: "left",
+      });
+      currentX += colWidths[1];
+      
+      // Prix unitaire de l'option
+      doc.text(`${optionPrice.toFixed(0)} DT`, currentX + 2, rowY + 8, {
+        width: colWidths[2] - 4,
+        align: "center",
+      });
+      currentX += colWidths[2];
+      
+      // Total de l'option
+      doc.text(`${optionTotal.toFixed(0)} DT`, currentX + 2, rowY + 8, {
+        width: colWidths[3] - 4,
+        align: "center",
+      });
+      
+      rowY += 25;
     }
-
-    rowY += rowHeight;
   });
 
   // Ligne de total séparée et alignée à droite
@@ -511,20 +533,16 @@ const generateEntreprisePDF = async (devis, res) => {
   
   // Dessiner le cadre du total aligné à droite
   const totalBoxX = startX + tableWidth - totalBoxWidth;
-  doc.rect(totalBoxX, rowY, totalBoxWidth, totalRowHeight).stroke();
-  
-  // Ligne verticale pour séparer "Total" du montant
-  doc.moveTo(totalBoxX + totalBoxWidth - 80, rowY).lineTo(totalBoxX + totalBoxWidth - 80, rowY + totalRowHeight).stroke();
   
   // Texte "Total" à gauche
-  doc.fontSize(10).font("Helvetica-Bold").fillColor("#000");
+  doc.fontSize(10).font("Helvetica-Bold").fillColor("#333333");
   doc.text("Total", totalBoxX + 2, rowY + 8, {
     width: totalBoxWidth - 82,
     align: "center",
   });
   
   // Montant total à droite
-  doc.text(`${devis.totalAmount.toFixed(3)}`, totalBoxX + totalBoxWidth - 78, rowY + 8, {
+  doc.text(`${devis.totalAmount.toFixed(0)}`, totalBoxX + totalBoxWidth - 78, rowY + 8, {
     width: 76,
     align: "center",
   });
@@ -621,130 +639,148 @@ const generateParticulierPDF = async (devis, res) => {
     width: doc.page.width,
   });
 
-  // Vérifier s'il y a des remises dans les articles
-  const hasDiscounts = devis.items.some(item => item.discount > 0);
-
-  // Tableau avec colonnes dynamiques
+  // Tableau avec style facture - sans bordures
   const startY = 280;
   const startX = 20;
   const tableWidth = 555;
 
-  // Ajuster les largeurs de colonnes selon la présence de remises
-  let colWidths, headers;
-  if (hasDiscounts) {
-    colWidths = [45, 200, 120, 70, 50, 35]; // Avec remise
-    headers = ["Quantité", "Description", "Ref Color", "Prix Unitaire", "Remise", "Total"];
-  } else {
-    colWidths = [45, 240, 120, 70, 45]; // Sans remise - redistribuer l'espace
-    headers = ["Quantité", "Description", "Ref Color", "Prix Unitaire", "Total"];
-  }
+  // Colonnes pour devis (sans TVA) - style facture avec Ref Color
+  const colWidths = [240, 60, 95, 80, 80]; // Description, Quantité, Ref Color, Prix Unitaire, Total
+  const headers = ["Description", "Quantité", "Ref Color", "Prix Unitaire", "Total"];
 
   let currentX = startX;
 
-  doc.rect(startX, startY, tableWidth, 25).stroke();
-  doc.fontSize(9).fillColor("#000");
+  // En-têtes avec style gris
+  doc.fontSize(10).fillColor("#666666");
 
   headers.forEach((header, index) => {
     doc.text(header, currentX + 2, startY + 8, {
       width: colWidths[index] - 4,
-      align: "center",
+      align: index === 0 ? "left" : "center",
     });
     currentX += colWidths[index];
   });
 
-  currentX = startX;
-  for (let i = 0; i < colWidths.length - 1; i++) {
-    currentX += colWidths[i];
-    doc.moveTo(currentX, startY).lineTo(currentX, startY + 25).stroke();
-  }
+  // Ligne de séparation sous l'en-tête
+  doc.strokeColor("#000000").lineWidth(1);
+  doc.moveTo(startX, startY + 25).lineTo(startX + tableWidth, startY + 25).stroke();
 
   let rowY = startY + 25;
   devis.items.forEach((item) => {
-    const rowHeight = 25;
-    doc.rect(startX, rowY, tableWidth, rowHeight).stroke();
-    currentX = startX;
+    const basePrice = parseFloat(item.basePrice) || parseFloat(item.unitPrice) || 0;
+    const optionPrice = item.selectedOption ? parseFloat(item.selectedOption.prix_option) || 0 : 0;
+    const quantity = parseFloat(item.quantity) || 1;
+    const discount = parseFloat(item.discount) || 0;
+    
+    // Calcul du prix après remise pour le produit de base
+    const basePriceAfterDiscount = basePrice * (1 - discount / 100);
+    const baseTotalAfterDiscount = quantity * basePriceAfterDiscount;
 
-    doc.fontSize(9).fillColor("#000");
-    doc.text(item.quantity.toString(), currentX + 2, rowY + 8, {
+    // Ligne principale du produit - sans bordures
+    currentX = startX;
+    doc.fontSize(10).fillColor("#333333");
+
+    // Description du produit
+    doc.text(item.description, currentX + 2, rowY + 8, {
       width: colWidths[0] - 4,
-      align: "center",
+      align: "left",
     });
     currentX += colWidths[0];
 
-    doc.text(item.description, currentX + 2, rowY + 4, {
+    // Quantité
+    doc.text(item.quantity.toString(), currentX + 2, rowY + 8, {
       width: colWidths[1] - 4,
       align: "center",
     });
     currentX += colWidths[1];
 
-    // Ref Color (colonne unique)
+    // Ref Color
     doc.text(item.refColor || "", currentX + 2, rowY + 8, {
       width: colWidths[2] - 4,
       align: "center",
     });
     currentX += colWidths[2];
 
-    // Prix Unitaire avec devise DT
-    doc.text(`${item.unitPrice.toFixed(0)} DT`, currentX + 2, rowY + 8, {
+    // Prix unitaire du produit de base
+    doc.text(`${basePrice.toFixed(0)} DT`, currentX + 2, rowY + 8, {
       width: colWidths[3] - 4,
       align: "center",
     });
     currentX += colWidths[3];
 
-    // Remise (seulement si il y a des remises)
-    if (hasDiscounts) {
-      doc.text(`${item.discount}%`, currentX + 2, rowY + 8, {
-        width: colWidths[4] - 4,
-        align: "center",
-      });
-      currentX += colWidths[4];
-    }
-
-    // Total avec devise DT
-    const totalIndex = hasDiscounts ? 5 : 4;
-    doc.text(`${item.total.toFixed(0)} DT`, currentX + 2, rowY + 8, {
-      width: colWidths[totalIndex] - 4,
+    // Total du produit de base
+    doc.text(`${baseTotalAfterDiscount.toFixed(0)} DT`, currentX + 2, rowY + 8, {
+      width: colWidths[4] - 4,
       align: "center",
     });
 
-    currentX = startX;
-    for (let i = 0; i < colWidths.length - 1; i++) {
-      currentX += colWidths[i];
-      doc.moveTo(currentX, rowY).lineTo(currentX, rowY + rowHeight).stroke();
-    }
+    rowY += 25;
 
-    rowY += rowHeight;
+    // Ligne séparée pour l'option si elle existe - sans bordures
+    if (item.selectedOption && optionPrice > 0) {
+      const optionTotal = quantity * optionPrice;
+      currentX = startX;
+      doc.fontSize(10).fillColor("#333333");
+      
+      // Description de l'option
+      doc.text(`(Option: ${item.selectedOption.option_name})`, currentX + 2, rowY + 8, {
+        width: colWidths[0] - 4,
+        align: "left",
+      });
+      currentX += colWidths[0];
+      
+      // Quantité vide pour l'option
+      currentX += colWidths[1];
+      
+      // Ref Color vide pour l'option
+      currentX += colWidths[2];
+      
+      // Prix unitaire de l'option
+      doc.text(`${optionPrice.toFixed(0)} DT`, currentX + 2, rowY + 8, {
+        width: colWidths[3] - 4,
+        align: "center",
+      });
+      currentX += colWidths[3];
+      
+      // Total de l'option
+      doc.text(`${optionTotal.toFixed(0)} DT`, currentX + 2, rowY + 8, {
+        width: colWidths[4] - 4,
+        align: "center",
+      });
+      
+      rowY += 25;
+    }
   });
 
-  // Ligne de total séparée et alignée à droite
-  rowY += 20;
-  const totalRowHeight = 25;
+  // Ligne de séparation avant le total
+  doc.strokeColor("#000000").lineWidth(1);
+  doc.moveTo(startX, rowY + 10).lineTo(startX + tableWidth, rowY + 10).stroke();
+
+  // Total avec style gris - espacement augmenté
+  rowY += 40;
   const totalBoxWidth = 200;
-  
-  // Dessiner le cadre du total aligné à droite
+  const totalBoxHeight = 25;
   const totalBoxX = startX + tableWidth - totalBoxWidth;
-  doc.rect(totalBoxX, rowY, totalBoxWidth, totalRowHeight).stroke();
+  
+  // Dessiner le cadre du total
+  doc.strokeColor("#000000").lineWidth(1);
+  doc.rect(totalBoxX, rowY, totalBoxWidth, totalBoxHeight).stroke();
   
   // Ligne verticale pour séparer "Total" du montant
-  doc.moveTo(totalBoxX + totalBoxWidth - 80, rowY).lineTo(totalBoxX + totalBoxWidth - 80, rowY + totalRowHeight).stroke();
+  doc.moveTo(totalBoxX + totalBoxWidth - 80, rowY).lineTo(totalBoxX + totalBoxWidth - 80, rowY + totalBoxHeight).stroke();
   
-  // Texte "Total" à gauche
-  doc.fontSize(10).font("Helvetica-Bold").fillColor("#000");
+  doc.fontSize(10).font("Helvetica-Bold").fillColor("#666666");
   doc.text("Total", totalBoxX + 2, rowY + 8, {
     width: totalBoxWidth - 82,
     align: "center",
   });
   
-  // Montant total à droite
-  doc.text(`${devis.totalAmount.toFixed(3)}`, totalBoxX + totalBoxWidth - 78, rowY + 8, {
+  doc.text(`${devis.totalAmount.toFixed(0)} DT`, totalBoxX + totalBoxWidth - 78, rowY + 8, {
     width: 76,
     align: "center",
   });
-  
-  rowY += totalRowHeight;
-
+  rowY += 50;
   // DÉLAIS DE LIVRAISON
-  rowY += 40;
   doc.fontSize(10).fillColor("#000");
   doc.text(`Délais de livraison: ${devis.deliveryDelay}`, 0, rowY, {
     width: doc.page.width,

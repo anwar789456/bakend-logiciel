@@ -48,6 +48,11 @@ const recuPaiementSchema = new mongoose.Schema({
       required: true,
       min: 0
     },
+    basePrice: {
+      type: Number,
+      default: 0,
+      min: 0
+    }, // Prix de base sans option
     discount: {
       type: Number,
       default: 0,
@@ -58,6 +63,13 @@ const recuPaiementSchema = new mongoose.Schema({
       type: Number,
       required: true,
       min: 0
+    },
+    // Informations sur le produit et l'option sélectionnée
+    productId: { type: String },
+    reference: { type: String },
+    selectedOption: {
+      option_name: { type: String },
+      prix_option: { type: String }
     }
   }],
   totalAmount: {

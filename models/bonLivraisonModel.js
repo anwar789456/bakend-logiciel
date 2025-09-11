@@ -24,7 +24,14 @@ const bonLivraisonSchema = new mongoose.Schema({
   items: [{
     quantity: { type: Number, required: true },
     description: { type: String, required: true },
-    refColor: { type: String }
+    refColor: { type: String },
+    // Informations sur le produit et l'option sélectionnée
+    productId: { type: String },
+    reference: { type: String },
+    selectedOption: {
+      option_name: { type: String },
+      prix_option: { type: String }
+    }
   }],
   
   // Logo personnalisé

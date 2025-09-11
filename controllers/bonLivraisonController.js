@@ -263,34 +263,30 @@ const generateBonLivraisonPDF = async (req, res) => {
     const colWidths = [80, 355, 120]; // Quantité, Description, Ref Couleur
     const headers = ["Quantité", "Description", "Ref Couleur"];
     
-    // En-têtes du tableau
+    // Table header avec style gris
     let currentX = startX;
-    doc.rect(startX, startY, tableWidth, 25).stroke();
-    doc.fontSize(9).fillColor("#000").font('Helvetica-Bold');
+    doc.fontSize(10).fillColor("#666666");
     
     headers.forEach((header, index) => {
       doc.text(header, currentX + 2, startY + 8, {
         width: colWidths[index] - 4,
-        align: "center"
+        align: index === 0 ? "left" : "center"
       });
       currentX += colWidths[index];
     });
 
-    // Lignes verticales de l'en-tête
-    currentX = startX;
-    for (let i = 0; i < colWidths.length - 1; i++) {
-      currentX += colWidths[i];
-      doc.moveTo(currentX, startY).lineTo(currentX, startY + 25).stroke();
-    }
+    // Ligne de séparation sous l'en-tête
+    doc.strokeColor("#000000").lineWidth(1);
+    doc.moveTo(startX, startY + 25).lineTo(startX + tableWidth, startY + 25).stroke();
 
     // Lignes du tableau
     let rowY = startY + 25;
     doc.font('Helvetica').fontSize(9);
     
     bonLivraison.items.forEach((item) => {
-      const rowHeight = 25;
-      doc.rect(startX, rowY, tableWidth, rowHeight).stroke();
+      // Ligne principale de l'article - sans bordures
       currentX = startX;
+      doc.fontSize(10).fillColor("#333333");
       
       // Quantité
       doc.text(item.quantity.toString(), currentX + 2, rowY + 8, {
@@ -299,10 +295,10 @@ const generateBonLivraisonPDF = async (req, res) => {
       });
       currentX += colWidths[0];
       
-      // Description
-      doc.text(item.description, currentX + 2, rowY + 4, {
+      // Description (sans option)
+      doc.text(item.description, currentX + 2, rowY + 8, {
         width: colWidths[1] - 4,
-        align: "center"
+        align: "left"
       });
       currentX += colWidths[1];
       
@@ -312,14 +308,24 @@ const generateBonLivraisonPDF = async (req, res) => {
         align: "center"
       });
       
-      // Lignes verticales
-      currentX = startX;
-      for (let i = 0; i < colWidths.length - 1; i++) {
-        currentX += colWidths[i];
-        doc.moveTo(currentX, rowY).lineTo(currentX, rowY + rowHeight).stroke();
-      }
-      
-      rowY += rowHeight;
+      rowY += 25;
+
+      // Ligne séparée pour l'option si disponible - sans bordures
+      if (item.selectedOption && item.selectedOption.option_name) {
+        doc.fontSize(9).fillColor("#666666");
+        
+        // Colonne vide pour quantité
+        currentX = startX + colWidths[0];
+        
+        // Option dans la colonne description
+        doc.text(`Option: ${item.selectedOption.option_name}`, currentX + 2, rowY + 8, {
+          width: colWidths[1] - 4,
+          align: "left"
+        });
+        
+        rowY += 25;
+      }  
+      doc.fillColor("#000"); // Remettre la couleur par défaut
     });
 
     // Section "Reste à payer" - largeur complète comme le tableau

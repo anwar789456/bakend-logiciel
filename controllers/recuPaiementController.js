@@ -274,34 +274,30 @@ const generateRecuPaiementPDF = async (req, res) => {
       headers = ["Quantité", "Description", "Ref Couleur", "Prix Unitaire", "Total"];
     }
     
-    // En-têtes du tableau
+    // Table header avec style gris
     let currentX = startX;
-    doc.rect(startX, startY, tableWidth, 25).stroke();
-    doc.fontSize(9).fillColor("#000").font('Helvetica-Bold');
+    doc.fontSize(10).fillColor("#666666");
     
     headers.forEach((header, index) => {
       doc.text(header, currentX + 2, startY + 8, {
         width: colWidths[index] - 4,
-        align: "center"
+        align: index === 0 ? "left" : "center"
       });
       currentX += colWidths[index];
     });
 
-    // Lignes verticales de l'en-tête
-    currentX = startX;
-    for (let i = 0; i < colWidths.length - 1; i++) {
-      currentX += colWidths[i];
-      doc.moveTo(currentX, startY).lineTo(currentX, startY + 25).stroke();
-    }
+    // Ligne de séparation sous l'en-tête
+    doc.strokeColor("#000000").lineWidth(1);
+    doc.moveTo(startX, startY + 25).lineTo(startX + tableWidth, startY + 25).stroke();
 
     // Lignes du tableau
     let rowY = startY + 25;
     doc.font('Helvetica').fontSize(9);
     
     recuPaiement.items.forEach((item) => {
-      const rowHeight = 25;
-      doc.rect(startX, rowY, tableWidth, rowHeight).stroke();
+      // Ligne principale de l'article - sans bordures
       currentX = startX;
+      doc.fontSize(10).fillColor("#333333");
       
       // Quantité
       doc.text(item.quantity.toString(), currentX + 2, rowY + 8, {
@@ -310,10 +306,10 @@ const generateRecuPaiementPDF = async (req, res) => {
       });
       currentX += colWidths[0];
       
-      // Description
-      doc.text(item.description, currentX + 2, rowY + 4, {
+      // Description (sans option)
+      doc.text(item.description, currentX + 2, rowY + 8, {
         width: colWidths[1] - 4,
-        align: "center"
+        align: "left"
       });
       currentX += colWidths[1];
       
@@ -346,14 +342,35 @@ const generateRecuPaiementPDF = async (req, res) => {
         align: "center"
       });
       
-      // Lignes verticales
-      currentX = startX;
-      for (let i = 0; i < colWidths.length - 1; i++) {
-        currentX += colWidths[i];
-        doc.moveTo(currentX, rowY).lineTo(currentX, rowY + rowHeight).stroke();
+      rowY += 25;
+
+      // Ligne séparée pour l'option si disponible - sans bordures
+      if (item.selectedOption && item.selectedOption.option_name) {
+        doc.fontSize(9).fillColor("#666666");
+        
+        // Colonne vide pour quantité
+        currentX = startX + colWidths[0];
+        
+        // Option dans la colonne description
+        doc.text(`Option: ${item.selectedOption.option_name}`, currentX + 2, rowY + 8, {
+          width: colWidths[1] - 4,
+          align: "left"
+        });
+        currentX += colWidths[1];
+        
+        // Colonne vide pour ref color
+        currentX += colWidths[2];
+        
+        // Prix de l'option
+        const optionPrice = parseFloat(item.selectedOption.prix_option) || 0;
+        doc.text(`+${optionPrice.toFixed(3)}`, currentX + 2, rowY + 8, {
+          width: colWidths[3] - 4,
+          align: "center"
+        });
+        
+        rowY += 25;
       }
-      
-      rowY += rowHeight;
+      doc.fillColor("#000"); // Remettre la couleur par défaut
     });
 
     // Section totaux

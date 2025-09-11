@@ -2,7 +2,7 @@ const express = require("express");
 const router = express.Router();
 
 // Import controller functions
-const { getAllProductItems, deleteProductById, updateProductById } = require("../controllers/productController");
+const { getAllProductItems, deleteProductById, updateProductById, addProduct } = require("../controllers/productController");
 
 // Get all product items
 router.get("/admin/api/logiciel/get-products", getAllProductItems);
