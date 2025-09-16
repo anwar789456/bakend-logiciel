@@ -267,11 +267,11 @@ const generateRecuPaiementPDF = async (req, res) => {
     
     let colWidths, headers;
     if (hasDiscounts) {
-      colWidths = [45, 200, 80, 80, 50, 50, 50]; // Avec remise
-      headers = ["Quantité", "Description", "Ref Couleur", "Prix Unitaire", "Remise", "Total"];
+      colWidths = [200, 45, 80, 80, 50, 50, 50]; // Avec remise
+      headers = ["Description", "Quantité", "Ref Couleur", "Prix Unitaire", "Remise", "Total"];
     } else {
-      colWidths = [45, 240, 80, 80, 50, 60]; // Sans remise
-      headers = ["Quantité", "Description", "Ref Couleur", "Prix Unitaire", "Total"];
+      colWidths = [240, 45, 80, 80, 50, 60]; // Sans remise
+      headers = ["Description", "Quantité", "Ref Couleur", "Prix Unitaire", "Total"];
     }
     
     // Table header avec style gris
@@ -299,17 +299,17 @@ const generateRecuPaiementPDF = async (req, res) => {
       currentX = startX;
       doc.fontSize(10).fillColor("#333333");
       
-      // Quantité
-      doc.text(item.quantity.toString(), currentX + 2, rowY + 8, {
+      // Description (sans option)
+      doc.text(item.description, currentX + 2, rowY + 8, {
         width: colWidths[0] - 4,
-        align: "center"
+        align: "left"
       });
       currentX += colWidths[0];
       
-      // Description (sans option)
-      doc.text(item.description, currentX + 2, rowY + 8, {
+      // Quantité
+      doc.text(item.quantity.toString(), currentX + 2, rowY + 8, {
         width: colWidths[1] - 4,
-        align: "left"
+        align: "center"
       });
       currentX += colWidths[1];
       
@@ -346,25 +346,40 @@ const generateRecuPaiementPDF = async (req, res) => {
 
       // Ligne séparée pour l'option si disponible - sans bordures
       if (item.selectedOption && item.selectedOption.option_name) {
-        doc.fontSize(9).fillColor("#666666");
+        currentX = startX;
+        doc.fontSize(10).fillColor("#333333");
         
-        // Colonne vide pour quantité
-        currentX = startX + colWidths[0];
-        
-        // Option dans la colonne description
-        doc.text(`Option: ${item.selectedOption.option_name}`, currentX + 2, rowY + 8, {
-          width: colWidths[1] - 4,
+        // Description de l'option
+        doc.text(`(Option: ${item.selectedOption.option_name})`, currentX + 2, rowY + 8, {
+          width: colWidths[0] - 4,
           align: "left"
         });
+        currentX += colWidths[0];
+        
+        // Quantité vide pour l'option
         currentX += colWidths[1];
         
-        // Colonne vide pour ref color
+        // Ref Color vide pour l'option
         currentX += colWidths[2];
         
         // Prix de l'option
         const optionPrice = parseFloat(item.selectedOption.prix_option) || 0;
-        doc.text(`+${optionPrice.toFixed(3)}`, currentX + 2, rowY + 8, {
+        doc.text(`${optionPrice.toFixed(0)} DT`, currentX + 2, rowY + 8, {
           width: colWidths[3] - 4,
+          align: "center"
+        });
+        currentX += colWidths[3];
+        
+        // Remise vide si applicable
+        if (hasDiscounts) {
+          currentX += colWidths[4];
+        }
+        
+        // Total de l'option
+        const quantity = parseFloat(item.quantity) || 1;
+        const optionTotal = quantity * optionPrice;
+        doc.text(`${optionTotal.toFixed(0)} DT`, currentX + 2, rowY + 8, {
+          width: colWidths[hasDiscounts ? 5 : 4] - 4,
           align: "center"
         });
         
