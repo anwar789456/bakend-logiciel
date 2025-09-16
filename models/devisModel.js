@@ -27,8 +27,16 @@ const devisSchema = new mongoose.Schema({
     description: { type: String, required: true },
     refColor: { type: String },
     unitPrice: { type: Number, required: true },
+    basePrice: { type: Number, default: 0 }, // Prix de base sans option
     discount: { type: Number, default: 0 },
-    total: { type: Number, required: true }
+    total: { type: Number, required: true },
+    // Informations sur le produit et l'option sélectionnée
+    productId: { type: String },
+    reference: { type: String },
+    selectedOption: {
+      option_name: { type: String },
+      prix_option: { type: String }
+    }
   }],
   
   // Totaux
@@ -45,8 +53,11 @@ const devisSchema = new mongoose.Schema({
   paymentTerms: { type: String, default: 'Tous les paiements sont effectués avant la livraison au showroom' },
   deliveryCondition: { type: String, default: 'LA LIVRAISON EST GRATUITE UNIQUEMENT SUR LE GRAND TUNIS (TUNIS, ARIANA, MANOUBA, BEN AROUS)' },
   
+  // Logo personnalisé
+  customLogo: { type: String }, // Chemin vers le logo personnalisé
+  
   // Statut et suivi
-  status: { type: String, enum: ['draft', 'sent', 'accepted', 'rejected', 'expired'], default: 'draft' },
+  status: { type: String, enum: ['pending', 'confirmed', 'cancelled', 'draft', 'sent', 'accepted', 'rejected', 'expired'], default: 'pending' },
   notes: { type: String },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now }

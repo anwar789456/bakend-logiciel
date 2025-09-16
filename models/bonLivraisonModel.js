@@ -24,11 +24,21 @@ const bonLivraisonSchema = new mongoose.Schema({
   items: [{
     quantity: { type: Number, required: true },
     description: { type: String, required: true },
-    refColor: { type: String }
+    refColor: { type: String },
+    // Informations sur le produit et l'option sélectionnée
+    productId: { type: String },
+    reference: { type: String },
+    selectedOption: {
+      option_name: { type: String },
+      prix_option: { type: String }
+    }
   }],
   
+  // Logo personnalisé
+  customLogo: { type: String }, // Chemin vers le logo personnalisé
+  
   // Statut et suivi
-  status: { type: String, enum: ['pending', 'delivered', 'cancelled'], default: 'pending' },
+  status: { type: String, enum: ['pending', 'confirmed', 'cancelled', 'delivered'], default: 'pending' },
   deliveryDate: { type: Date },
   notes: { type: String },
   createdAt: { type: Date, default: Date.now },

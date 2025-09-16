@@ -3,6 +3,40 @@ const factureCompteurModel = require("../models/factureCompteurModel");
 const PDFDocument = require('pdfkit');
 const fs = require('fs');
 const path = require('path');
+const multer = require('multer');
+
+// Configuration multer pour l'upload de logos
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    const uploadDir = path.join(__dirname, '..', 'uploads', 'logos');
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+    cb(null, uploadDir);
+  },
+  filename: function (req, file, cb) {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, 'logo-' + uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
+const upload = multer({
+  storage: storage,
+  limits: {
+    fileSize: 5 * 1024 * 1024 // 5MB limit
+  },
+  fileFilter: function (req, file, cb) {
+    const allowedTypes = /jpeg|jpg|png|gif|bmp|webp/;
+    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+    const mimetype = allowedTypes.test(file.mimetype);
+    
+    if (mimetype && extname) {
+      return cb(null, true);
+    } else {
+      cb(new Error('Seules les images sont autorisées (jpeg, jpg, png, gif, bmp, webp)'));
+    }
+  }
+});
 
 // Helper function to get initialized Facture model
 const getFactureModel = () => {
@@ -37,17 +71,8 @@ const generateFactureNumber = async () => {
       factureNumber: { $regex: `^\\d+/${yearSuffix}$` }
     }).sort({ factureNumber: -1 }).limit(1);
 
+    // Use the current counter value as the next facture number
     let nextNumber = parseInt(counter.factureComptValue, 10);
-
-    if (existingFactures.length > 0) {
-      const lastFactureNumber = existingFactures[0].factureNumber;
-      const lastNumber = parseInt(lastFactureNumber.split('/')[0], 10);
-
-      // If existing facture number is higher than counter, sync counter
-      if (lastNumber >= nextNumber) {
-        nextNumber = lastNumber + 1;
-      }
-    }
 
     // Check if the generated number already exists (extra safety)
     let factureNumber = `${nextNumber}/${yearSuffix}`;
@@ -56,7 +81,7 @@ const generateFactureNumber = async () => {
       factureNumber = `${nextNumber}/${yearSuffix}`;
     }
 
-    // Update counter to next number
+    // Update counter to next number for the next facture
     counter.factureComptValue = (nextNumber + 1).toString();
     counter.datefacturecompt = new Date();
     await counter.save();
@@ -163,14 +188,14 @@ const createFacture = async (req, res) => {
 
     const totalHT = subtotal - totalDiscount;
 
-    // Calculate TVA for enterprises
+    // Calculate TVA for both particulier and entreprise
     const clientType = req.body.clientType || 'particulier';
-    const tvaRate = clientType === 'entreprise' ? (req.body.tvaRate || 19) : 0;
-    const tvaAmount = clientType === 'entreprise' ? (totalHT * tvaRate / 100) : 0;
+    const tvaRate = req.body.tvaRate || 19; // TVA pour tous les types de clients
+    const tvaAmount = totalHT * tvaRate / 100;
     const totalTTC = totalHT + tvaAmount;
 
-    // For particulier: totalAmount = totalHT, for entreprise: totalAmount = totalTTC
-    const totalAmount = clientType === 'entreprise' ? totalTTC : totalHT;
+    // totalAmount = totalTTC for both types
+    const totalAmount = totalTTC;
 
     const factureData = {
       ...req.body,
@@ -288,6 +313,7 @@ const generateFacturePDF = async (req, res) => {
 
     const PDFDocument = require("pdfkit");
     const path = require('path');
+    const fs = require('fs');
 
     const doc = new PDFDocument({ margin: 20, size: "A4" });
 
@@ -306,8 +332,16 @@ const generateFacturePDF = async (req, res) => {
     doc.text("GSM: 56834015", 20, 56);
     doc.text("E-Mail: design@samethome.com", 20, 68);
 
-    // Logo SAMET HOME
-    const imagePath = path.join(__dirname, '..', 'images', 'image.png');
+    // Logo - utiliser le logo personnalisé ou le logo par défaut
+    let imagePath;
+    console.log('Facture customLogo:', facture.customLogo);
+    if (facture.customLogo && fs.existsSync(path.join(__dirname, '..', 'uploads', 'logos', facture.customLogo))) {
+      imagePath = path.join(__dirname, '..', 'uploads', 'logos', facture.customLogo);
+      console.log('Using custom logo:', imagePath);
+    } else {
+      imagePath = path.join(__dirname, '..', 'images', 'image.png');
+      console.log('Using default logo:', imagePath);
+    }
     doc.image(imagePath, 20, 90, { width: 180 });
 
     // Client info at top right
@@ -345,113 +379,205 @@ const generateFacturePDF = async (req, res) => {
     const tableWidth = 555;
 
     // Column widths matching the template
-    const colWidths = [60, 200, 90, 80, 80]; // Quantité, Description, Ref Color, P. unitaire HT, Total HT
-    const headers = ["Quantité", "Description", "Ref Color", "P. unitaire HT", "Total HT"];
+    const colWidths = [200, 60, 80, 60, 80]; // Description, Quantité, Prix unitaire, Taxes, Montant
+    const headers = ["Description", "Quantité", "Prix unitaire", "Taxes", "Montant"];
 
     let currentX = startX;
 
-    // Table header
-    doc.rect(startX, startY, tableWidth, 25).stroke();
-    doc.fontSize(9).fillColor("#000");
+    // Table header avec style gris
+    doc.fontSize(10).fillColor("#666666");
 
     headers.forEach((header, index) => {
       doc.text(header, currentX + 2, startY + 8, {
         width: colWidths[index] - 4,
-        align: "center",
+        align: index === 0 ? "left" : "center",
       });
       currentX += colWidths[index];
     });
 
-    // Vertical lines for header
-    currentX = startX;
-    for (let i = 0; i < colWidths.length - 1; i++) {
-      currentX += colWidths[i];
-      doc.moveTo(currentX, startY).lineTo(currentX, startY + 25).stroke();
-    }
+    // Ligne de séparation sous l'en-tête
+    doc.strokeColor("#000000").lineWidth(1);
+    doc.moveTo(startX, startY + 25).lineTo(startX + tableWidth, startY + 25).stroke();
 
-    // Table rows
+    // Lignes des articles
     let rowY = startY + 25;
     facture.items.forEach((item) => {
-      const rowHeight = 25;
-      doc.rect(startX, rowY, tableWidth, rowHeight).stroke();
+      const productTva = parseFloat(item.tva) || 19;
+      const optionTva = parseFloat(item.optionTva) || parseFloat(item.selectedOption?.tva) || productTva;
+      const basePrice = parseFloat(item.basePrice) || parseFloat(item.unitPrice) || 0;
+      const optionPrice = item.selectedOption ? parseFloat(item.selectedOption.prix_option) || 0 : 0;
+      const quantity = parseFloat(item.quantity) || 1;
+      const discount = parseFloat(item.discount) || 0;
+      
+      // Calcul du prix après remise pour le produit de base
+      const basePriceAfterDiscount = basePrice * (1 - discount / 100);
+      const baseTotalAfterDiscount = quantity * basePriceAfterDiscount;
+
+      // Ligne principale du produit - sans bordures
       currentX = startX;
+      doc.fontSize(10).fillColor("#333333");
 
-      doc.fontSize(9).fillColor("#000");
-
-      // Quantité
-      doc.text(item.quantity.toString(), currentX + 2, rowY + 8, {
+      // Description du produit
+      doc.text(item.description, currentX + 2, rowY + 8, {
         width: colWidths[0] - 4,
-        align: "center",
+        align: "left",
       });
       currentX += colWidths[0];
 
-      // Description
-      doc.text(item.description, currentX + 2, rowY + 4, {
+      // Quantité
+      doc.text(item.quantity.toFixed(2), currentX + 2, rowY + 8, {
         width: colWidths[1] - 4,
+        align: "center",
       });
       currentX += colWidths[1];
 
-      // Ref Color
-      doc.text(item.refColor || '', currentX + 2, rowY + 8, {
+      // Prix unitaire du produit de base
+      doc.text(`${basePrice.toFixed(2)}`, currentX + 2, rowY + 8, {
         width: colWidths[2] - 4,
         align: "center",
       });
       currentX += colWidths[2];
 
-      // P. unitaire HT
-      doc.text(`${item.unitPrice.toFixed(3)}`, currentX + 2, rowY + 8, {
+      // TVA du produit
+      doc.text(`${productTva}%`, currentX + 2, rowY + 8, {
         width: colWidths[3] - 4,
         align: "center",
       });
       currentX += colWidths[3];
 
-      // Total HT
-      doc.text(`${item.total.toFixed(3)}`, currentX + 2, rowY + 8, {
+      // Montant du produit de base
+      doc.text(`${baseTotalAfterDiscount.toFixed(3)} DT`, currentX + 2, rowY + 8, {
         width: colWidths[4] - 4,
         align: "center",
       });
 
-      // Vertical lines
-      currentX = startX;
-      for (let i = 0; i < colWidths.length - 1; i++) {
-        currentX += colWidths[i];
-        doc.moveTo(currentX, rowY).lineTo(currentX, rowY + rowHeight).stroke();
-      }
+      rowY += 25;
 
-      rowY += rowHeight;
+      // Ligne séparée pour l'option si elle existe - sans bordures
+      if (item.selectedOption && optionPrice > 0) {
+        const optionTotal = quantity * optionPrice;
+        currentX = startX;
+        
+        // Description de l'option
+        doc.text(item.selectedOption.option_name, currentX + 2, rowY + 8, {
+          width: colWidths[0] - 4,
+          align: "left",
+        });
+        currentX += colWidths[0];
+        
+        // Quantité
+        doc.text(item.quantity.toFixed(2), currentX + 2, rowY + 8, {
+          width: colWidths[1] - 4,
+          align: "center",
+        });
+        currentX += colWidths[1];
+        
+        // Prix de l'option
+        doc.text(`${optionPrice.toFixed(2)}`, currentX + 2, rowY + 8, {
+          width: colWidths[2] - 4,
+          align: "center",
+        });
+        currentX += colWidths[2];
+        
+        // TVA de l'option
+        doc.text(`${optionTva}%`, currentX + 2, rowY + 8, {
+          width: colWidths[3] - 4,
+          align: "center",
+        });
+        currentX += colWidths[3];
+        
+        // Montant de l'option
+        doc.text(`${optionTotal.toFixed(3)} DT`, currentX + 2, rowY + 8, {
+          width: colWidths[4] - 4,
+          align: "center",
+        });
+        
+        rowY += 25;
+      }
     });
 
-    // Summary table on the right
-    rowY += 20;
-    const summaryWidth = 150;
-    const summaryX = startX + tableWidth - summaryWidth;
+    // Ajouter informations supplémentaires
+    rowY += 30;
+    doc.fontSize(10).fillColor("#666666");
+    doc.text("Conditions de paiement : 21 jours", startX, rowY);
+    rowY += 40;
+    doc.text(`Communication de paiement : ${facture.factureNumber}`, startX, rowY);
 
-    // TOTAL HT
-    doc.rect(summaryX, rowY, summaryWidth, 20).stroke();
-    doc.fontSize(10).font("Helvetica-Bold");
-    doc.text("TOTAL HT", summaryX + 5, rowY + 6);
-    doc.text(`${facture.totalHT.toFixed(3)}`, summaryX + 80, rowY + 6);
+    // Summary table à droite - style comme l'image
+    const summaryX = 350;
+    const summaryWidth = 200;
+    let summaryY = rowY - 60;
 
-    rowY += 20;
+    // Ligne de séparation en haut
+    doc.strokeColor("#000000").lineWidth(1);
+    doc.moveTo(summaryX, summaryY).lineTo(summaryX + summaryWidth - 20, summaryY).stroke();
+    summaryY += 15;
 
-    // TVA
-    doc.rect(summaryX, rowY, summaryWidth, 20).stroke();
-    doc.text("TVA", summaryX + 5, rowY + 6);
-    doc.text(`${facture.tvaAmount.toFixed(3)}`, summaryX + 80, rowY + 6);
+    // MONTANT HORS TAXES d'abord
+    doc.fontSize(10).fillColor("#333333");
+    doc.text("Montant hors taxes", summaryX, summaryY);
+    doc.text(`${facture.totalHT.toFixed(3)} DT`, summaryX + summaryWidth - 80, summaryY);
+    summaryY += 25;
 
-    rowY += 20;
+    // Ligne de séparation après montant HT
+    doc.strokeColor("#000000").lineWidth(1);
+    doc.moveTo(summaryX, summaryY).lineTo(summaryX + summaryWidth - 20, summaryY).stroke();
+    summaryY += 15;
 
-    // Timbre Fiscal
-    doc.rect(summaryX, rowY, summaryWidth, 20).stroke();
-    doc.text("Timbre Fiscal", summaryX + 5, rowY + 6);
-    doc.text("1.000", summaryX + 80, rowY + 6);
+    // TVA Details après le montant HT - toujours afficher même pour particuliers
+    // Regrouper les articles et options par taux de TVA
+    const tvaGroups = {};
+    
+    facture.items.forEach((item) => {
+      const quantity = parseFloat(item.quantity) || 0;
+      const basePrice = parseFloat(item.basePrice) || parseFloat(item.unitPrice) || 0;
+      const discount = parseFloat(item.discount) || 0;
+      const optionPrice = item.selectedOption ? parseFloat(item.selectedOption.prix_option) || 0 : 0;
+      
+      const productTva = parseFloat(item.tva) || 19;
+      const optionTva = parseFloat(item.optionTva) || parseFloat(item.selectedOption?.tva) || productTva;
+      
+      // Montant HT après remise pour le produit
+      const basePriceAfterDiscount = quantity * basePrice * (1 - discount / 100);
+      
+      // Ajouter au groupe TVA du produit
+      if (!tvaGroups[productTva]) {
+        tvaGroups[productTva] = 0;
+      }
+      tvaGroups[productTva] += basePriceAfterDiscount;
+      
+      // Ajouter au groupe TVA de l'option si elle existe
+      if (item.selectedOption && optionPrice > 0) {
+        const optionPriceTotal = quantity * optionPrice;
+        
+        if (!tvaGroups[optionTva]) {
+          tvaGroups[optionTva] = 0;
+        }
+        tvaGroups[optionTva] += optionPriceTotal;
+      }
+    });
+    
+    // Afficher les détails TVA pour tous les clients
+    Object.entries(tvaGroups).forEach(([rate, baseAmount]) => {
+      const tvaAmount = baseAmount * parseFloat(rate) / 100;
+      
+      doc.fontSize(10).fillColor("#333333");
+      doc.text(`TVA ${rate}% sur ${baseAmount.toFixed(3)} DT`, summaryX, summaryY);
+      doc.text(`${tvaAmount.toFixed(3)} DT`, summaryX + summaryWidth - 60, summaryY);
+      summaryY += 25;
+    });
 
-    rowY += 20;
+    // Ligne de séparation avant le total
+    summaryY += 10;
+    doc.strokeColor("#000000").lineWidth(1);
+    doc.moveTo(summaryX, summaryY).lineTo(summaryX + summaryWidth - 20, summaryY).stroke();
+    summaryY += 15;
 
-    // TOTAL TTC
-    doc.rect(summaryX, rowY, summaryWidth, 20).stroke();
-    doc.text("TOTAL TTC", summaryX + 5, rowY + 6);
-    doc.text(`${(facture.totalTTC + 1).toFixed(3)}`, summaryX + 80, rowY + 6); // +1 for timbre fiscal
+    // TOTAL TTC uniquement (couleur grise)
+    doc.fontSize(11).fillColor("#666666").font("Helvetica-Bold");
+    doc.text("Total", summaryX, summaryY);
+    doc.text(`${facture.totalAmount.toFixed(3)} DT`, summaryX + summaryWidth - 80, summaryY);
+
 
     // Footer
     doc.font("Helvetica").fontSize(8).fillColor("#000");
@@ -472,11 +598,51 @@ const generateFacturePDF = async (req, res) => {
   }
 };
 
+// Upload logo for facture
+const uploadLogo = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: "Aucun fichier fourni" });
+    }
+
+    const logoPath = req.file.filename;
+    console.log('Logo uploaded for facture:', logoPath);
+    res.json({ 
+      message: "Logo uploadé avec succès",
+      logoPath: logoPath,
+      originalName: req.file.originalname
+    });
+  } catch (error) {
+    console.error('Error uploading logo:', error);
+    res.status(500).json({ message: "Erreur lors de l'upload du logo", error: error.message });
+  }
+};
+
+// Get uploaded logo
+const getLogo = async (req, res) => {
+  try {
+    const logoName = req.params.logoName;
+    const logoPath = path.join(__dirname, '..', 'uploads', 'logos', logoName);
+    
+    if (!fs.existsSync(logoPath)) {
+      return res.status(404).json({ message: "Logo non trouvé" });
+    }
+    
+    res.sendFile(logoPath);
+  } catch (error) {
+    console.error('Error getting logo:', error);
+    res.status(500).json({ message: "Erreur lors de la récupération du logo", error: error.message });
+  }
+};
+
 module.exports = { 
   getAllFactureItems, 
   getFactureById,
   createFacture,
   updateFactureById, 
   deleteFactureById,
-  generateFacturePDF
+  generateFacturePDF,
+  uploadLogo,
+  getLogo,
+  upload
 };

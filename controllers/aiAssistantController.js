@@ -1,6 +1,19 @@
 const mongoose = require('mongoose');
 
 // Modèles pour récupérer les données
+const getFicheCommandeModel = () => {
+  try {
+    return mongoose.model('FicheCommande');
+  } catch (error) {
+    const ficheCommandeModel = require('../models/ficheCommandeModel');
+    const model = ficheCommandeModel.initModel();
+    if (!model) {
+      throw new Error('Failed to initialize FicheCommande model');
+    }
+    return model;
+  }
+};
+
 const getDevisModel = () => {
   try {
     return mongoose.model('Devis');
@@ -28,60 +41,83 @@ const getProduitsModel = () => {
 // 🧠 Analyse des produits les plus demandés
 const analyzeTopProducts = async () => {
   try {
-    const Devis = getDevisModel();
-    const devisList = await Devis.find({});
+    const FicheCommande = getFicheCommandeModel();
+    const fichesList = await FicheCommande.find({});
+    
+    if (!fichesList || fichesList.length === 0) {
+      return { 
+        topByQuantity: [], 
+        topByRevenue: [],
+        message: 'Aucune fiche de commande trouvée'
+      };
+    }
     
     const productStats = {};
     
-    devisList.forEach(devis => {
-      devis.items.forEach(item => {
-        const key = item.description || 'Produit inconnu';
-        if (!productStats[key]) {
-          productStats[key] = {
-            name: key,
-            totalQuantity: 0,
-            totalRevenue: 0,
-            orders: 0,
-            avgPrice: 0
-          };
-        }
-        
-        productStats[key].totalQuantity += item.quantity;
-        productStats[key].totalRevenue += item.total;
-        productStats[key].orders += 1;
-        productStats[key].avgPrice = productStats[key].totalRevenue / productStats[key].totalQuantity;
-      });
+    fichesList.forEach(fiche => {
+      // Extraire le nom du produit/commande
+      const productName = fiche.Commande || fiche.commande || fiche.Produit || fiche.produit || fiche.Article || fiche.article || 'Produit inconnu';
+      const quantity = parseFloat(fiche.Quantite || fiche.quantite || fiche.Qty || fiche.qty || 1) || 1;
+      const montant = parseFloat(fiche.Mt_commande || fiche['Mt commande'] || fiche.montant || fiche.Montant || fiche.Prix || fiche.prix || 0) || 0;
+      
+      if (!productStats[productName]) {
+        productStats[productName] = {
+          name: productName,
+          totalQuantity: 0,
+          totalRevenue: 0,
+          orders: 0,
+          avgPrice: 0
+        };
+      }
+      
+      productStats[productName].totalQuantity += quantity;
+      productStats[productName].totalRevenue += montant;
+      productStats[productName].orders += 1;
+      productStats[productName].avgPrice = productStats[productName].totalQuantity > 0 ? 
+        productStats[productName].totalRevenue / productStats[productName].totalQuantity : 0;
     });
     
     // Trier par quantité demandée
     const topByQuantity = Object.values(productStats)
+      .filter(p => p.name !== 'Produit inconnu' && p.totalQuantity > 0)
       .sort((a, b) => b.totalQuantity - a.totalQuantity)
       .slice(0, 10);
     
     // Trier par revenus
     const topByRevenue = Object.values(productStats)
+      .filter(p => p.name !== 'Produit inconnu' && p.totalRevenue > 0)
       .sort((a, b) => b.totalRevenue - a.totalRevenue)
       .slice(0, 10);
     
     return { topByQuantity, topByRevenue };
   } catch (error) {
     console.error('Error analyzing products:', error);
-    throw error;
+    return { 
+      topByQuantity: [], 
+      topByRevenue: [],
+      error: error.message
+    };
   }
 };
 
 // 🏢 Analyse des clients par région
 const analyzeClientsByRegion = async () => {
   try {
-    const Devis = getDevisModel();
-    const devisList = await Devis.find({});
+    const FicheCommande = getFicheCommandeModel();
+    const fichesList = await FicheCommande.find({});
+    
+    if (!fichesList || fichesList.length === 0) {
+      return [];
+    }
     
     const regionStats = {};
     
-    devisList.forEach(devis => {
-      // Extraire la région de l'adresse
-      const address = devis.clientAddress || '';
+    fichesList.forEach(fiche => {
+      // Extraire le client et l'adresse
+      const clientName = fiche.Client || fiche.client || fiche.Nom_client || fiche.nom_client || 'Client inconnu';
+      const address = fiche.Adresse || fiche.adresse || fiche.Address || fiche.address || '';
       const region = extractRegion(address);
+      const montant = parseFloat(fiche.Mt_commande || fiche['Mt commande'] || fiche.montant || fiche.Montant || 0) || 0;
       
       if (!regionStats[region]) {
         regionStats[region] = {
@@ -93,104 +129,95 @@ const analyzeClientsByRegion = async () => {
         };
       }
       
-      regionStats[region].clientCount.add(devis.clientName);
+      regionStats[region].clientCount.add(clientName);
       regionStats[region].totalOrders += 1;
-      regionStats[region].totalRevenue += devis.totalAmount;
+      regionStats[region].totalRevenue += montant;
     });
     
     // Convertir Set en nombre et calculer moyennes
     Object.values(regionStats).forEach(stat => {
       stat.clientCount = stat.clientCount.size;
-      stat.avgOrderValue = stat.totalRevenue / stat.totalOrders;
+      stat.avgOrderValue = stat.totalOrders > 0 ? stat.totalRevenue / stat.totalOrders : 0;
     });
     
     const topRegions = Object.values(regionStats)
+      .filter(r => r.region !== 'Non spécifié')
       .sort((a, b) => b.totalRevenue - a.totalRevenue)
       .slice(0, 10);
     
     return topRegions;
   } catch (error) {
     console.error('Error analyzing regions:', error);
-    throw error;
+    return [];
   }
 };
 
 // 🎯 Prédictions avancées avec Machine Learning
 const generatePredictions = async () => {
   try {
-    const Devis = getDevisModel();
-    const devisList = await Devis.find({}).sort({ date: -1 });
+    const FicheCommande = getFicheCommandeModel();
+    const fichesList = await FicheCommande.find({}).sort({ _importDate: -1 });
+    
+    if (!fichesList || fichesList.length === 0) {
+      return {
+        nextMonthRevenue: 0,
+        nextMonthOrders: 0,
+        monthlyTrends: { revenue: 'stable', orders: 'stable' },
+        seasonalInsights: [],
+        recommendations: [],
+        totalDataPoints: 0,
+        analysisConfidence: 'Low'
+      };
+    }
     
     // Analyser les tendances des 6 derniers mois pour plus de précision
     const sixMonthsAgo = new Date();
     sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
     
-    const recentDevis = devisList.filter(devis => 
-      new Date(devis.date) >= sixMonthsAgo
-    );
+    const recentFiches = fichesList.filter(fiche => {
+      const ficheDate = fiche.Date_commande || fiche['Date commande'] || fiche.date || fiche.Date || fiche._importDate;
+      if (!ficheDate) return false;
+      try {
+        return new Date(ficheDate) >= sixMonthsAgo;
+      } catch (e) {
+        return false;
+      }
+    });
     
     // Calculs de tendances avancés
     const monthlyStats = {};
-    const weeklyStats = {};
     const seasonalPatterns = {};
     
-    recentDevis.forEach(devis => {
-      const date = new Date(devis.date);
-      const month = date.toISOString().slice(0, 7);
-      const week = getWeekNumber(date);
-      const season = getSeason(date);
-      
-      // Stats mensuelles
-      if (!monthlyStats[month]) {
-        monthlyStats[month] = {
-          orders: 0,
-          revenue: 0,
-          products: {},
-          avgOrderValue: 0,
-          clientCount: new Set()
-        };
-      }
-      
-      monthlyStats[month].orders += 1;
-      monthlyStats[month].revenue += devis.totalAmount;
-      monthlyStats[month].clientCount.add(devis.clientName);
-      
-      // Stats hebdomadaires
-      if (!weeklyStats[week]) {
-        weeklyStats[week] = { orders: 0, revenue: 0 };
-      }
-      weeklyStats[week].orders += 1;
-      weeklyStats[week].revenue += devis.totalAmount;
-      
-      // Patterns saisonniers
-      if (!seasonalPatterns[season]) {
-        seasonalPatterns[season] = { orders: 0, revenue: 0, products: {} };
-      }
-      seasonalPatterns[season].orders += 1;
-      seasonalPatterns[season].revenue += devis.totalAmount;
-      
-      devis.items.forEach(item => {
-        const product = item.description;
+    recentFiches.forEach(fiche => {
+      const ficheDate = fiche.Date_commande || fiche['Date commande'] || fiche.date || fiche.Date || fiche._importDate;
+      try {
+        const date = new Date(ficheDate);
+        const month = date.toISOString().slice(0, 7);
+        const season = getSeason(date);
+        const revenue = parseFloat(fiche.Mt_commande || fiche['Mt commande'] || fiche.montant || fiche.Montant || 0) || 0;
         
-        // Produits par mois
-        if (!monthlyStats[month].products[product]) {
-          monthlyStats[month].products[product] = 0;
+        // Stats mensuelles
+        if (!monthlyStats[month]) {
+          monthlyStats[month] = { orders: 0, revenue: 0 };
         }
-        monthlyStats[month].products[product] += item.quantity;
+        monthlyStats[month].orders += 1;
+        monthlyStats[month].revenue += revenue;
         
-        // Produits par saison
-        if (!seasonalPatterns[season].products[product]) {
-          seasonalPatterns[season].products[product] = 0;
+        // Patterns saisonniers
+        if (!seasonalPatterns[season]) {
+          seasonalPatterns[season] = { orders: 0, revenue: 0 };
         }
-        seasonalPatterns[season].products[product] += item.quantity;
-      });
+        seasonalPatterns[season].orders += 1;
+        seasonalPatterns[season].revenue += revenue;
+      } catch (e) {
+        console.warn('Invalid date in fiche:', ficheDate);
+      }
     });
     
     // Calcul des moyennes
     Object.keys(monthlyStats).forEach(month => {
       const stats = monthlyStats[month];
-      stats.avgOrderValue = stats.revenue / stats.orders;
-      stats.clientCount = stats.clientCount.size;
+      stats.avgOrderValue = stats.orders > 0 ? stats.revenue / stats.orders : 0;
     });
     
     // Prédictions avancées avec multiple algorithmes
@@ -199,68 +226,114 @@ const generatePredictions = async () => {
     const ordersData = months.map(m => monthlyStats[m].orders);
     
     const predictions = {
-      // Prédictions financières avec régression polynomiale
-      nextMonthRevenue: predictWithPolynomialRegression(revenueData),
-      next3MonthsRevenue: predictMultipleMonths(revenueData, 3),
-      nextMonthOrders: predictWithPolynomialRegression(ordersData),
+      // Prédictions financières simples
+      nextMonthRevenue: predictNextValue(revenueData),
+      nextMonthOrders: predictNextValue(ordersData),
       
       // Analyse de tendances
-      trendingProducts: findAdvancedTrendingProducts(monthlyStats),
-      seasonalInsights: analyzeSeasonalPatterns(seasonalPatterns),
+      monthlyTrends: {
+        revenue: calculateTrend(revenueData),
+        orders: calculateTrend(ordersData)
+      },
       
-      // Prédictions de croissance
-      growthPrediction: predictGrowthTrend(revenueData),
-      marketOpportunities: identifyMarketOpportunities(monthlyStats, seasonalPatterns),
+      // Insights saisonniers
+      seasonalInsights: Object.keys(seasonalPatterns).map(season => ({
+        season,
+        orders: seasonalPatterns[season].orders,
+        revenue: seasonalPatterns[season].revenue,
+        avgOrderValue: seasonalPatterns[season].orders > 0 ? 
+          seasonalPatterns[season].revenue / seasonalPatterns[season].orders : 0
+      })),
       
-      // Recommandations intelligentes
-      recommendations: generateAdvancedRecommendations(monthlyStats, seasonalPatterns),
-      riskAnalysis: analyzeBusinessRisks(monthlyStats),
+      // Recommandations basiques
+      recommendations: generateBasicRecommendations(monthlyStats, seasonalPatterns),
       
-      // Métriques de confiance
-      confidenceScore: calculatePredictionConfidence(revenueData),
-      dataQuality: assessDataQuality(recentDevis)
+      // Métriques de base
+      totalDataPoints: recentFiches.length,
+      analysisConfidence: recentFiches.length > 10 ? 'High' : recentFiches.length > 5 ? 'Medium' : 'Low'
     };
     
     return predictions;
   } catch (error) {
     console.error('Error generating advanced predictions:', error);
-    throw error;
+    return {
+      nextMonthRevenue: 0,
+      nextMonthOrders: 0,
+      monthlyTrends: { revenue: 'stable', orders: 'stable' },
+      seasonalInsights: [],
+      recommendations: [],
+      totalDataPoints: 0,
+      analysisConfidence: 'Low',
+      error: error.message
+    };
   }
 };
 
 // 📊 Analyse des performances de vente
 const analyzeSalesPerformance = async () => {
   try {
-    const Devis = getDevisModel();
-    const devisList = await Devis.find({});
+    const FicheCommande = getFicheCommandeModel();
+    const fichesList = await FicheCommande.find({});
+    
+    if (!fichesList || fichesList.length === 0) {
+      return {
+        currentMonth: { orders: 0, revenue: 0, avgOrderValue: 0 },
+        lastMonth: { orders: 0, revenue: 0, avgOrderValue: 0 },
+        growth: { orders: 0, revenue: 0, avgOrderValue: 0 }
+      };
+    }
     
     const currentMonth = new Date().toISOString().slice(0, 7);
     const lastMonth = new Date();
     lastMonth.setMonth(lastMonth.getMonth() - 1);
     const lastMonthStr = lastMonth.toISOString().slice(0, 7);
     
-    const currentMonthDevis = devisList.filter(d => 
-      d.date.toISOString().slice(0, 7) === currentMonth
-    );
+    const currentMonthFiches = fichesList.filter(f => {
+      const ficheDate = f.Date_commande || f['Date commande'] || f.date || f.Date;
+      if (!ficheDate) return false;
+      try {
+        const dateStr = new Date(ficheDate).toISOString().slice(0, 7);
+        return dateStr === currentMonth;
+      } catch (e) {
+        return false;
+      }
+    });
     
-    const lastMonthDevis = devisList.filter(d => 
-      d.date.toISOString().slice(0, 7) === lastMonthStr
-    );
+    const lastMonthFiches = fichesList.filter(f => {
+      const ficheDate = f.Date_commande || f['Date commande'] || f.date || f.Date;
+      if (!ficheDate) return false;
+      try {
+        const dateStr = new Date(ficheDate).toISOString().slice(0, 7);
+        return dateStr === lastMonthStr;
+      } catch (e) {
+        return false;
+      }
+    });
     
     const performance = {
       currentMonth: {
-        orders: currentMonthDevis.length,
-        revenue: currentMonthDevis.reduce((sum, d) => sum + d.totalAmount, 0),
-        avgOrderValue: currentMonthDevis.length > 0 ? 
-          currentMonthDevis.reduce((sum, d) => sum + d.totalAmount, 0) / currentMonthDevis.length : 0
+        orders: currentMonthFiches.length,
+        revenue: currentMonthFiches.reduce((sum, f) => {
+          const montant = parseFloat(f.Mt_commande || f['Mt commande'] || f.montant || f.Montant || 0) || 0;
+          return sum + montant;
+        }, 0),
+        avgOrderValue: 0
       },
       lastMonth: {
-        orders: lastMonthDevis.length,
-        revenue: lastMonthDevis.reduce((sum, d) => sum + d.totalAmount, 0),
-        avgOrderValue: lastMonthDevis.length > 0 ? 
-          lastMonthDevis.reduce((sum, d) => sum + d.totalAmount, 0) / lastMonthDevis.length : 0
+        orders: lastMonthFiches.length,
+        revenue: lastMonthFiches.reduce((sum, f) => {
+          const montant = parseFloat(f.Mt_commande || f['Mt commande'] || f.montant || f.Montant || 0) || 0;
+          return sum + montant;
+        }, 0),
+        avgOrderValue: 0
       }
     };
+    
+    // Calculer les valeurs moyennes
+    performance.currentMonth.avgOrderValue = performance.currentMonth.orders > 0 ? 
+      performance.currentMonth.revenue / performance.currentMonth.orders : 0;
+    performance.lastMonth.avgOrderValue = performance.lastMonth.orders > 0 ? 
+      performance.lastMonth.revenue / performance.lastMonth.orders : 0;
     
     // Calcul des variations
     performance.growth = {
@@ -272,18 +345,37 @@ const analyzeSalesPerformance = async () => {
     return performance;
   } catch (error) {
     console.error('Error analyzing sales performance:', error);
-    throw error;
+    return {
+      currentMonth: { orders: 0, revenue: 0, avgOrderValue: 0 },
+      lastMonth: { orders: 0, revenue: 0, avgOrderValue: 0 },
+      growth: { orders: 0, revenue: 0, avgOrderValue: 0 },
+      error: error.message
+    };
   }
 };
 
 // 🎯 Endpoint principal pour l'assistant IA
 const getAIInsights = async (req, res) => {
   try {
+    console.log('Starting AI insights analysis...');
+    
     const [topProducts, regionAnalysis, predictions, salesPerformance] = await Promise.all([
-      analyzeTopProducts(),
-      analyzeClientsByRegion(),
-      generatePredictions(),
-      analyzeSalesPerformance()
+      analyzeTopProducts().catch(err => {
+        console.error('Error in analyzeTopProducts:', err);
+        return { topByQuantity: [], topByRevenue: [], error: err.message };
+      }),
+      analyzeClientsByRegion().catch(err => {
+        console.error('Error in analyzeClientsByRegion:', err);
+        return [];
+      }),
+      generatePredictions().catch(err => {
+        console.error('Error in generatePredictions:', err);
+        return { error: err.message };
+      }),
+      analyzeSalesPerformance().catch(err => {
+        console.error('Error in analyzeSalesPerformance:', err);
+        return { error: err.message };
+      })
     ]);
     
     const insights = {
@@ -295,12 +387,14 @@ const getAIInsights = async (req, res) => {
       summary: generateInsightsSummary(topProducts, regionAnalysis, predictions, salesPerformance)
     };
     
+    console.log('AI insights generated successfully');
     res.json(insights);
   } catch (error) {
     console.error('Error getting AI insights:', error);
     res.status(500).json({ 
       error: 'Erreur lors de l\'analyse des données',
-      message: error.message 
+      message: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   }
 };
@@ -738,15 +832,71 @@ const findTrendingProducts = (monthlyStats) => {
 };
 
 const calculateTrend = (values) => {
-  if (values.length < 2) return 0;
-  const first = values[0];
-  const last = values[values.length - 1];
-  return first > 0 ? ((last - first) / first) * 100 : 0;
+  if (values.length < 2) return 'stable';
+  
+  const firstHalf = values.slice(0, Math.floor(values.length / 2));
+  const secondHalf = values.slice(Math.floor(values.length / 2));
+  
+  const firstAvg = firstHalf.reduce((a, b) => a + b, 0) / firstHalf.length;
+  const secondAvg = secondHalf.reduce((a, b) => a + b, 0) / secondHalf.length;
+  
+  const change = ((secondAvg - firstAvg) / firstAvg) * 100;
+  
+  if (change > 10) return 'croissant';
+  if (change < -10) return 'décroissant';
+  return 'stable';
 };
 
 const calculateGrowth = (oldValue, newValue) => {
   if (oldValue === 0) return newValue > 0 ? 100 : 0;
   return ((newValue - oldValue) / oldValue) * 100;
+};
+
+
+const generateBasicRecommendations = (monthlyStats, seasonalPatterns) => {
+  const recommendations = [];
+  
+  const months = Object.keys(monthlyStats).sort();
+  if (months.length >= 2) {
+    const lastMonth = monthlyStats[months[months.length - 1]];
+    const previousMonth = monthlyStats[months[months.length - 2]];
+    
+    if (lastMonth.revenue > previousMonth.revenue) {
+      recommendations.push({
+        type: 'positive',
+        title: 'Croissance positive',
+        description: 'Vos revenus sont en hausse ce mois-ci. Continuez sur cette lancée!'
+      });
+    } else {
+      recommendations.push({
+        type: 'attention',
+        title: 'Baisse des revenus',
+        description: 'Analysez les causes de la baisse et ajustez votre stratégie.'
+      });
+    }
+  }
+  
+  // Analyse saisonnière - vérifier que seasonalPatterns n'est pas vide
+  const seasonKeys = Object.keys(seasonalPatterns);
+  if (seasonKeys.length > 0) {
+    const bestSeason = seasonKeys.reduce((a, b) => 
+      seasonalPatterns[a].revenue > seasonalPatterns[b].revenue ? a : b
+    );
+    
+    recommendations.push({
+      type: 'insight',
+      title: 'Meilleure saison',
+      description: `La saison "${bestSeason}" génère le plus de revenus. Préparez-vous en conséquence.`
+    });
+  } else {
+    recommendations.push({
+      type: 'info',
+      title: 'Données insuffisantes',
+      description: 'Pas assez de données pour analyser les tendances saisonnières.'
+    });
+  }
+  
+  return recommendations;
 };
 
 const generateRecommendations = (monthlyStats) => {

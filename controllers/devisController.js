@@ -4,6 +4,40 @@ const PDFDocument = require('pdfkit');
 const QRCode = require('qrcode');
 const fs = require('fs');
 const path = require('path');
+const multer = require('multer');
+
+// Configuration multer pour l'upload de logos
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    const uploadDir = path.join(__dirname, '..', 'uploads', 'logos');
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+    cb(null, uploadDir);
+  },
+  filename: function (req, file, cb) {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, 'logo-' + uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
+const upload = multer({
+  storage: storage,
+  limits: {
+    fileSize: 5 * 1024 * 1024 // 5MB limit
+  },
+  fileFilter: function (req, file, cb) {
+    const allowedTypes = /jpeg|jpg|png|gif|bmp|webp/;
+    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+    const mimetype = allowedTypes.test(file.mimetype);
+    
+    if (mimetype && extname) {
+      return cb(null, true);
+    } else {
+      cb(new Error('Seules les images sont autorisées (jpeg, jpg, png, gif, bmp, webp)'));
+    }
+  }
+});
 
 // Helper function to get initialized Devis model
 const getDevisModel = () => {
@@ -38,17 +72,8 @@ const generateDevisNumber = async () => {
       devisNumber: { $regex: `^\\d+/${yearSuffix}$` }
     }).sort({ devisNumber: -1 }).limit(1);
 
+    // Use the current counter value as the next devis number
     let nextNumber = parseInt(counter.devisComptValue, 10);
-
-    if (existingDevis.length > 0) {
-      const lastDevisNumber = existingDevis[0].devisNumber;
-      const lastNumber = parseInt(lastDevisNumber.split('/')[0], 10);
-
-      // If existing devis number is higher than counter, sync counter
-      if (lastNumber >= nextNumber) {
-        nextNumber = lastNumber + 1;
-      }
-    }
 
     // Check if the generated number already exists (extra safety)
     let devisNumber = `${nextNumber}/${yearSuffix}`;
@@ -57,7 +82,7 @@ const generateDevisNumber = async () => {
       devisNumber = `${nextNumber}/${yearSuffix}`;
     }
 
-    // Update counter to next number
+    // Update counter to next number for the next devis
     counter.devisComptValue = (nextNumber + 1).toString();
     counter.datedeviscompt = new Date();
     await counter.save();
@@ -331,8 +356,13 @@ const generateEntreprisePDF = async (devis, res) => {
     margin: 1,
   });
 
-  // Logo et en-tête
-  const imagePath = path.join(__dirname, '..', 'images', 'image.png');
+  // Logo et en-tête - utiliser le logo personnalisé ou le logo par défaut
+  let imagePath;
+  if (devis.customLogo && fs.existsSync(path.join(__dirname, '..', 'uploads', 'logos', devis.customLogo))) {
+    imagePath = path.join(__dirname, '..', 'uploads', 'logos', devis.customLogo);
+  } else {
+    imagePath = path.join(__dirname, '..', 'images', 'image.png');
+  }
 
   // En-tête société
   doc.fontSize(8).fillColor("#000").text("SATRACO s.a.r.l - IU:1280963K", 20, 20);
@@ -345,7 +375,7 @@ const generateEntreprisePDF = async (devis, res) => {
 
   // Informations client entreprise (à droite)
   let clientStartY = 50;
-  doc.font("Helvetica-Bold").fontSize(10);
+  doc.font("Helvetica-Bold").fontSize(9);
 
   doc.text("CLIENT : ", 400, clientStartY);
   doc.font("Helvetica").text(devis.companyName || devis.clientName, 460, clientStartY);
@@ -395,105 +425,132 @@ const generateEntreprisePDF = async (devis, res) => {
   const startX = 20;
   const tableWidth = 555;
 
-  // Colonnes pour entreprise
-  const colWidths = [115, 180, 80, 80, 100]; // Description, Ref Color, Nombre d'unité, Prix, Total
-  const headers = ["Description", "Ref Color", "Nombre d'unité", "Prix", "Total"];
+  // Colonnes pour devis (sans TVA)
+  const colWidths = [60, 300, 95, 100]; // Quantité, Description, Prix Unitaire, Total
+  const headers = ["Quantité", "Description", "Prix Unitaire", "Total"];
 
   let currentX = startX;
 
-  // En-tête du tableau
-  doc.rect(startX, startY, tableWidth, 25).stroke();
-  doc.fontSize(9).fillColor("#000");
+  // Table header avec style gris
+  doc.fontSize(10).fillColor("#666666");
 
   headers.forEach((header, index) => {
     if (index < colWidths.length) {
       doc.text(header, currentX + 2, startY + 8, {
         width: colWidths[index] - 4,
-        align: "center",
+        align: index === 0 ? "left" : "center",
       });
       currentX += colWidths[index];
     }
   });
 
-  // Lignes verticales de l'en-tête
-  currentX = startX;
-  for (let i = 0; i < colWidths.length - 1; i++) {
-    currentX += colWidths[i];
-    doc.moveTo(currentX, startY).lineTo(currentX, startY + 25).stroke();
-  }
+  // Ligne de séparation sous l'en-tête
+  doc.strokeColor("#000000").lineWidth(1);
+  doc.moveTo(startX, startY + 25).lineTo(startX + tableWidth, startY + 25).stroke();
 
   // Lignes des articles
   let rowY = startY + 25;
   devis.items.forEach((item) => {
-    const rowHeight = 25;
-    doc.rect(startX, rowY, tableWidth, rowHeight).stroke();
+    const basePrice = parseFloat(item.basePrice) || parseFloat(item.unitPrice) || 0;
+    const optionPrice = item.selectedOption ? parseFloat(item.selectedOption.prix_option) || 0 : 0;
+    const quantity = parseFloat(item.quantity) || 1;
+    const discount = parseFloat(item.discount) || 0;
+    
+    // Calcul du prix après remise pour le produit de base
+    const basePriceAfterDiscount = basePrice * (1 - discount / 100);
+    const baseTotalAfterDiscount = quantity * basePriceAfterDiscount;
+
+    // Ligne principale du produit - sans bordures
     currentX = startX;
+    doc.fontSize(10).fillColor("#333333");
 
-    doc.fontSize(9).fillColor("#000");
-
-    // Description
-    doc.text(item.description, currentX + 2, rowY + 4, {
+    // Quantité
+    doc.text(item.quantity.toString(), currentX + 2, rowY + 8, {
       width: colWidths[0] - 4,
+      align: "center",
     });
     currentX += colWidths[0];
 
-    // Ref Color (colonne unique)
-    doc.text(item.refColor || '', currentX + 2, rowY + 8, {
+    // Description du produit
+    doc.text(item.description, currentX + 2, rowY + 8, {
       width: colWidths[1] - 4,
-      align: "center",
+      align: "left",
     });
     currentX += colWidths[1];
 
-    // Nombre d'unité
-    doc.text(item.quantity.toString(), currentX + 2, rowY + 8, {
+    // Prix unitaire du produit de base
+    doc.text(`${basePrice.toFixed(0)} DT`, currentX + 2, rowY + 8, {
       width: colWidths[2] - 4,
       align: "center",
     });
     currentX += colWidths[2];
 
-    // Prix
-    doc.text(`${item.unitPrice.toFixed(3)}`, currentX + 2, rowY + 8, {
+    // Total du produit de base
+    doc.text(`${baseTotalAfterDiscount.toFixed(0)} DT`, currentX + 2, rowY + 8, {
       width: colWidths[3] - 4,
       align: "center",
     });
-    currentX += colWidths[3];
 
-    // Total
-    doc.text(`${item.total.toFixed(3)}`, currentX + 2, rowY + 8, {
-      width: colWidths[4] - 4,
-      align: "center",
-    });
+    rowY += 25;
 
-    // Lignes verticales
-    currentX = startX;
-    for (let i = 0; i < colWidths.length - 1; i++) {
-      currentX += colWidths[i];
-      doc.moveTo(currentX, rowY).lineTo(currentX, rowY + rowHeight).stroke();
+    // Ligne séparée pour l'option si elle existe - sans bordures
+    if (item.selectedOption && optionPrice > 0) {
+      const optionTotal = quantity * optionPrice;
+      currentX = startX;
+      doc.fontSize(10).fillColor("#333333");
+      
+      // Quantité vide pour l'option
+      currentX += colWidths[0];
+      
+      // Description de l'option
+      doc.text(`(Option: ${item.selectedOption.option_name})`, currentX + 2, rowY + 8, {
+        width: colWidths[1] - 4,
+        align: "left",
+      });
+      currentX += colWidths[1];
+      
+      // Prix unitaire de l'option
+      doc.text(`${optionPrice.toFixed(0)} DT`, currentX + 2, rowY + 8, {
+        width: colWidths[2] - 4,
+        align: "center",
+      });
+      currentX += colWidths[2];
+      
+      // Total de l'option
+      doc.text(`${optionTotal.toFixed(0)} DT`, currentX + 2, rowY + 8, {
+        width: colWidths[3] - 4,
+        align: "center",
+      });
+      
+      rowY += 25;
     }
-
-    rowY += rowHeight;
   });
 
-  // Total dans un cadre
+  // Ligne de total séparée et alignée à droite
   rowY += 20;
-  const totalBoxHeight = 40;
-
-  doc.rect(startX + tableWidth - 150, rowY, 150, totalBoxHeight).stroke();
-
-  doc.fontSize(11).font("Helvetica-Bold").fillColor("#000");
-  doc.text("Total", startX + tableWidth - 148, rowY + 8, {
-    width: 146,
+  const totalRowHeight = 25;
+  const totalBoxWidth = 200;
+  
+  // Dessiner le cadre du total aligné à droite
+  const totalBoxX = startX + tableWidth - totalBoxWidth;
+  
+  // Texte "Total" à gauche
+  doc.fontSize(10).font("Helvetica-Bold").fillColor("#333333");
+  doc.text("Total", totalBoxX + 2, rowY + 8, {
+    width: totalBoxWidth - 82,
     align: "center",
   });
-
-  doc.fontSize(14).font("Helvetica-Bold").fillColor("#000");
-  doc.text(`# ${devis.totalAmount.toFixed(3)}`, startX + tableWidth - 148, rowY + 22, {
-    width: 146,
+  
+  // Montant total à droite
+  doc.text(`${devis.totalAmount.toFixed(0)}`, totalBoxX + totalBoxWidth - 78, rowY + 8, {
+    width: 76,
     align: "center",
   });
+  
+  rowY += totalRowHeight;
 
   // Conditions de livraison
-  rowY += totalBoxHeight + 40;
+  rowY += 40;
   doc.fontSize(10).fillColor("#000");
   doc.text("LA LIVRAISON EST GRATUITE UNIQUEMENT SUR LE GRAND TUNIS (TUNIS, ARIANA, MANOUBA, BEN AROUS)", 0, rowY, {
     width: doc.page.width,
@@ -538,8 +595,13 @@ const generateParticulierPDF = async (devis, res) => {
     margin: 1,
   });
 
-  // image
-  const imagePath = path.join(__dirname, '..', 'images', 'image.png');
+  // Logo - utiliser le logo personnalisé ou le logo par défaut
+  let imagePath;
+  if (devis.customLogo && fs.existsSync(path.join(__dirname, '..', 'uploads', 'logos', devis.customLogo))) {
+    imagePath = path.join(__dirname, '..', 'uploads', 'logos', devis.customLogo);
+  } else {
+    imagePath = path.join(__dirname, '..', 'images', 'image.png');
+  }
 
   // En-tête société
   doc.fontSize(8).fillColor("#000").text("SATRACO s.a.r.l - IU:1280963K", 20, 20, {
@@ -554,15 +616,15 @@ const generateParticulierPDF = async (devis, res) => {
 
   // Infos client
   let clientStartY = 50;
-  doc.font("Helvetica-Bold").fontSize(11);
+  doc.font("Helvetica-Bold").fontSize(9);
   doc.text("CLIENT : ", 400, clientStartY);
   doc.font("Helvetica").text(devis.clientName, 460, clientStartY);
 
   doc.font("Helvetica-Bold").text("ADRESSE : ", 400, clientStartY + 15);
   doc.font("Helvetica").text(devis.clientAddress, 460, clientStartY + 15);
 
-  doc.font("Helvetica-Bold").text("Téléphone : ", 400, clientStartY + 30);
-  doc.font("Helvetica").text(devis.clientPhone, 460, clientStartY + 30);
+  doc.font("Helvetica-Bold").text("Téléphone : ", 400, clientStartY + 36);
+  doc.font("Helvetica").text(devis.clientPhone, 460, clientStartY + 36);
 
   // Titre centré
   doc.fontSize(16).fillColor("#000");
@@ -577,125 +639,148 @@ const generateParticulierPDF = async (devis, res) => {
     width: doc.page.width,
   });
 
-  // Vérifier s'il y a des remises dans les articles
-  const hasDiscounts = devis.items.some(item => item.discount > 0);
-
-  // Tableau avec colonnes dynamiques
+  // Tableau avec style facture - sans bordures
   const startY = 280;
   const startX = 20;
   const tableWidth = 555;
 
-  // Ajuster les largeurs de colonnes selon la présence de remises
-  let colWidths, headers;
-  if (hasDiscounts) {
-    colWidths = [45, 200, 120, 70, 50, 35]; // Avec remise
-    headers = ["Quantité", "Description", "Ref Color", "Prix Unitaire", "Remise", "Total"];
-  } else {
-    colWidths = [45, 240, 120, 70, 45]; // Sans remise - redistribuer l'espace
-    headers = ["Quantité", "Description", "Ref Color", "Prix Unitaire", "Total"];
-  }
+  // Colonnes pour devis (sans TVA) - style facture avec Ref Color
+  const colWidths = [240, 60, 95, 80, 80]; // Description, Quantité, Ref Color, Prix Unitaire, Total
+  const headers = ["Description", "Quantité", "Ref Color", "Prix Unitaire", "Total"];
 
   let currentX = startX;
 
-  doc.rect(startX, startY, tableWidth, 25).stroke();
-  doc.fontSize(9).fillColor("#000");
+  // En-têtes avec style gris
+  doc.fontSize(10).fillColor("#666666");
 
   headers.forEach((header, index) => {
     doc.text(header, currentX + 2, startY + 8, {
       width: colWidths[index] - 4,
-      align: "center",
+      align: index === 0 ? "left" : "center",
     });
     currentX += colWidths[index];
   });
 
-  currentX = startX;
-  for (let i = 0; i < colWidths.length - 1; i++) {
-    currentX += colWidths[i];
-    doc.moveTo(currentX, startY).lineTo(currentX, startY + 25).stroke();
-  }
+  // Ligne de séparation sous l'en-tête
+  doc.strokeColor("#000000").lineWidth(1);
+  doc.moveTo(startX, startY + 25).lineTo(startX + tableWidth, startY + 25).stroke();
 
   let rowY = startY + 25;
   devis.items.forEach((item) => {
-    const rowHeight = 25;
-    doc.rect(startX, rowY, tableWidth, rowHeight).stroke();
-    currentX = startX;
+    const basePrice = parseFloat(item.basePrice) || parseFloat(item.unitPrice) || 0;
+    const optionPrice = item.selectedOption ? parseFloat(item.selectedOption.prix_option) || 0 : 0;
+    const quantity = parseFloat(item.quantity) || 1;
+    const discount = parseFloat(item.discount) || 0;
+    
+    // Calcul du prix après remise pour le produit de base
+    const basePriceAfterDiscount = basePrice * (1 - discount / 100);
+    const baseTotalAfterDiscount = quantity * basePriceAfterDiscount;
 
-    doc.fontSize(9).fillColor("#000");
-    doc.text(item.quantity.toString(), currentX + 2, rowY + 8, {
+    // Ligne principale du produit - sans bordures
+    currentX = startX;
+    doc.fontSize(10).fillColor("#333333");
+
+    // Description du produit
+    doc.text(item.description, currentX + 2, rowY + 8, {
       width: colWidths[0] - 4,
-      align: "center",
+      align: "left",
     });
     currentX += colWidths[0];
 
-    doc.text(item.description, currentX + 2, rowY + 4, {
+    // Quantité
+    doc.text(item.quantity.toString(), currentX + 2, rowY + 8, {
       width: colWidths[1] - 4,
+      align: "center",
     });
     currentX += colWidths[1];
 
-    // Ref Color (colonne unique)
+    // Ref Color
     doc.text(item.refColor || "", currentX + 2, rowY + 8, {
       width: colWidths[2] - 4,
       align: "center",
     });
     currentX += colWidths[2];
 
-    // Prix Unitaire avec devise DT
-    doc.text(`${item.unitPrice.toFixed(0)} DT`, currentX + 2, rowY + 8, {
+    // Prix unitaire du produit de base
+    doc.text(`${basePrice.toFixed(0)} DT`, currentX + 2, rowY + 8, {
       width: colWidths[3] - 4,
       align: "center",
     });
     currentX += colWidths[3];
 
-    // Remise (seulement si il y a des remises)
-    if (hasDiscounts) {
-      doc.text(`${item.discount}%`, currentX + 2, rowY + 8, {
-        width: colWidths[4] - 4,
-        align: "center",
-      });
-      currentX += colWidths[4];
-    }
-
-    // Total avec devise DT
-    const totalIndex = hasDiscounts ? 5 : 4;
-    doc.text(`${item.total.toFixed(0)} DT`, currentX + 2, rowY + 8, {
-      width: colWidths[totalIndex] - 4,
+    // Total du produit de base
+    doc.text(`${baseTotalAfterDiscount.toFixed(0)} DT`, currentX + 2, rowY + 8, {
+      width: colWidths[4] - 4,
       align: "center",
     });
 
-    currentX = startX;
-    for (let i = 0; i < colWidths.length - 1; i++) {
-      currentX += colWidths[i];
-      doc.moveTo(currentX, rowY).lineTo(currentX, rowY + rowHeight).stroke();
+    rowY += 25;
+
+    // Ligne séparée pour l'option si elle existe - sans bordures
+    if (item.selectedOption && optionPrice > 0) {
+      const optionTotal = quantity * optionPrice;
+      currentX = startX;
+      doc.fontSize(10).fillColor("#333333");
+      
+      // Description de l'option
+      doc.text(`(Option: ${item.selectedOption.option_name})`, currentX + 2, rowY + 8, {
+        width: colWidths[0] - 4,
+        align: "left",
+      });
+      currentX += colWidths[0];
+      
+      // Quantité vide pour l'option
+      currentX += colWidths[1];
+      
+      // Ref Color vide pour l'option
+      currentX += colWidths[2];
+      
+      // Prix unitaire de l'option
+      doc.text(`${optionPrice.toFixed(0)} DT`, currentX + 2, rowY + 8, {
+        width: colWidths[3] - 4,
+        align: "center",
+      });
+      currentX += colWidths[3];
+      
+      // Total de l'option
+      doc.text(`${optionTotal.toFixed(0)} DT`, currentX + 2, rowY + 8, {
+        width: colWidths[4] - 4,
+        align: "center",
+      });
+      
+      rowY += 25;
     }
-
-    rowY += rowHeight;
   });
 
-  // TOTAL AU COMPTANT dans un cadre comme le tableau
-  rowY += 20;
-  const totalBoxHeight = 40;
+  // Ligne de séparation avant le total
+  doc.strokeColor("#000000").lineWidth(1);
+  doc.moveTo(startX, rowY + 10).lineTo(startX + tableWidth, rowY + 10).stroke();
 
-  // Dessiner le cadre du total
-  doc.rect(startX, rowY, tableWidth, totalBoxHeight).stroke();
-
-  // Texte "Total au comptant"
-  doc.fontSize(11).font("Helvetica-Bold").fillColor("#000");
-  doc.text("Total au comptant", startX + 2, rowY + 8, {
-    width: tableWidth - 4,
-    align: "center",
-  });
-
-  // Montant total avec devise DT
-  doc.fontSize(14).font("Helvetica-Bold").fillColor("#000");
-  doc.text(`${devis.totalAmount.toFixed(0)} DT`, startX + 2, rowY + 22, {
-    width: tableWidth - 4,
-    align: "center",
-  });
-
-  rowY += totalBoxHeight;
-
-  // DÉLAIS DE LIVRAISON
+  // Total avec style gris - espacement augmenté
   rowY += 40;
+  const totalBoxWidth = 200;
+  const totalBoxHeight = 25;
+  const totalBoxX = startX + tableWidth - totalBoxWidth;
+  
+  // Dessiner le cadre du total
+  doc.strokeColor("#000000").lineWidth(1);
+  doc.rect(totalBoxX, rowY, totalBoxWidth, totalBoxHeight).stroke();
+  
+  // Ligne verticale pour séparer "Total" du montant
+  doc.moveTo(totalBoxX + totalBoxWidth - 80, rowY).lineTo(totalBoxX + totalBoxWidth - 80, rowY + totalBoxHeight).stroke();
+  
+  doc.fontSize(10).font("Helvetica-Bold").fillColor("#666666");
+  doc.text("Total", totalBoxX + 2, rowY + 8, {
+    width: totalBoxWidth - 82,
+    align: "center",
+  });
+  
+  doc.text(`${devis.totalAmount.toFixed(0)} DT`, totalBoxX + totalBoxWidth - 78, rowY + 8, {
+    width: 76,
+    align: "center",
+  });
+  rowY += 50;
+  // DÉLAIS DE LIVRAISON
   doc.fontSize(10).fillColor("#000");
   doc.text(`Délais de livraison: ${devis.deliveryDelay}`, 0, rowY, {
     width: doc.page.width,
@@ -739,6 +824,42 @@ const generateParticulierPDF = async (devis, res) => {
   doc.end();
 };
 
+// Upload logo for devis
+const uploadLogo = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: "Aucun fichier fourni" });
+    }
+
+    const logoPath = req.file.filename;
+    res.json({ 
+      message: "Logo uploadé avec succès",
+      logoPath: logoPath,
+      originalName: req.file.originalname
+    });
+  } catch (error) {
+    console.error('Error uploading logo:', error);
+    res.status(500).json({ message: "Erreur lors de l'upload du logo", error: error.message });
+  }
+};
+
+// Get uploaded logo
+const getLogo = async (req, res) => {
+  try {
+    const logoName = req.params.logoName;
+    const logoPath = path.join(__dirname, '..', 'uploads', 'logos', logoName);
+    
+    if (!fs.existsSync(logoPath)) {
+      return res.status(404).json({ message: "Logo non trouvé" });
+    }
+    
+    res.sendFile(logoPath);
+  } catch (error) {
+    console.error('Error getting logo:', error);
+    res.status(500).json({ message: "Erreur lors de la récupération du logo", error: error.message });
+  }
+};
+
 
 module.exports = { 
   getAllDevisItems, 
@@ -746,5 +867,8 @@ module.exports = {
   createDevis,
   updateDevisById, 
   deleteDevisById,
-  generateDevisPDF
+  generateDevisPDF,
+  uploadLogo,
+  getLogo,
+  upload
 };
