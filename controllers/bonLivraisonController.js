@@ -310,13 +310,21 @@ const generateBonLivraisonPDF = async (req, res) => {
       
       rowY += 25;
 
-      // Ligne séparée pour l'option si elle existe - sans bordures
-      if (item.selectedOption && item.selectedOption.option_name) {
+      // Ligne séparée pour l'option si elle existe ET a un nom valide
+      if (item.selectedOption && item.selectedOption.option_name && item.selectedOption.option_name !== 'undefined') {
         currentX = startX;
         doc.fontSize(10).fillColor("#333333");
+
+        // Déterminer le type d'option (Tissu/Mousse)
+        let optionTypeRaw = (item.selectedOption && item.selectedOption.groupType) || '';
+        if (!optionTypeRaw) {
+          const marker = `${item.selectedOption.group || ''} ${item.selectedOption.option_name || ''}`;
+          optionTypeRaw = /mousse/i.test(marker) ? 'mousse' : 'options';
+        }
+        const optionTypeLabel = String(optionTypeRaw).toLowerCase() === 'mousse' ? 'Mousse' : 'Tissu';
         
-        // Description de l'option
-        doc.text(`(Option: ${item.selectedOption.option_name})`, currentX + 2, rowY + 8, {
+        // Description de l'option avec type
+        doc.text(`(${optionTypeLabel} - ${item.selectedOption.option_name})`, currentX + 2, rowY + 8, {
           width: colWidths[0] - 4,
           align: "left",
         });

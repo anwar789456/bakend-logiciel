@@ -175,34 +175,55 @@ const createDevis = async (req, res) => {
     const devisNumber = await generateDevisNumber();
     console.log('Generated devis number:', devisNumber);
 
-    // Calculate totals
+    // Calculate totals (remise sur prix de base uniquement, TVA par article)
     let subtotal = 0;
     let totalDiscount = 0;
+    let totalTvaAmount = 0;
 
     const items = req.body.items.map(item => {
-      const itemTotal = (item.quantity * item.unitPrice) * (1 - (item.discount || 0) / 100);
-      subtotal += item.quantity * item.unitPrice;
-      totalDiscount += (item.quantity * item.unitPrice) * ((item.discount || 0) / 100);
+      const quantity = parseFloat(item.quantity) || 0;
+      const basePrice = parseFloat(item.basePrice) || parseFloat(item.unitPrice) || 0;
+      const discount = parseFloat(item.discount) || 0;
+      const optionPrice = item.selectedOption ? (parseFloat(item.selectedOption.prix_option) || 0) : 0;
+      const productTva = parseFloat(item.tva) || 19;
+      const optionTva = parseFloat(item.optionTva) || parseFloat(item.selectedOption?.tva) || productTva;
+
+      // Sous-total par ligne (avant remise)
+      const itemSubtotal = quantity * (basePrice + optionPrice);
+      // Remise uniquement sur le prix de base
+      const itemDiscount = quantity * basePrice * (discount / 100);
+      // Montant final HT (après remise et ajout option)
+      const itemTotalHT = quantity * (basePrice * (1 - discount / 100) + optionPrice);
+
+      // TVA par composant
+      const baseTvaAmount = quantity * (basePrice * (1 - discount / 100)) * (productTva / 100);
+      const optionTvaAmount = quantity * optionPrice * (optionTva / 100);
+      totalTvaAmount += baseTvaAmount + optionTvaAmount;
+
+      subtotal += itemSubtotal;
+      totalDiscount += itemDiscount;
+
       return {
         ...item,
-        discount: item.discount || 0,
-        total: itemTotal
+        basePrice: basePrice,
+        discount: discount,
+        tva: productTva,
+        optionTva: optionTva,
+        selectedOption: item.selectedOption ? { ...item.selectedOption, tva: optionTva } : item.selectedOption,
+        total: itemTotalHT
       };
     });
 
     const totalHT = subtotal - totalDiscount;
 
-    // Calculate TVA for enterprises
+    // TVA toujours calculée par article; pour devis = total HT
     const clientType = req.body.clientType || 'particulier';
-    console.log('Processing clientType:', clientType);
-    console.log('Is entreprise?', clientType === 'entreprise');
-    
-    const tvaRate = clientType === 'entreprise' ? (req.body.tvaRate || 19) : 0;
-    const tvaAmount = clientType === 'entreprise' ? (totalHT * tvaRate / 100) : 0;
+    const tvaRate = req.body.tvaRate || 19;
+    const tvaAmount = totalTvaAmount;
     const totalTTC = totalHT + tvaAmount;
 
-    // For particulier: totalAmount = totalHT, for entreprise: totalAmount = totalTTC
-    const totalAmount = clientType === 'entreprise' ? totalTTC : totalHT;
+    // Montant final HT pour les devis
+    const totalAmount = totalHT;
     
     console.log('TVA calculations:');
     console.log('- tvaRate:', tvaRate);
@@ -259,21 +280,53 @@ const updateDevisById = async (req, res) => {
     if (req.body.items) {
       let subtotal = 0;
       let totalDiscount = 0;
-      
+      let totalTvaAmount = 0;
+
       const items = req.body.items.map(item => {
-        const itemTotal = (item.quantity * item.unitPrice) * (1 - item.discount / 100);
-        subtotal += item.quantity * item.unitPrice;
-        totalDiscount += (item.quantity * item.unitPrice) * (item.discount / 100);
+        const quantity = parseFloat(item.quantity) || 0;
+        const basePrice = parseFloat(item.basePrice) || parseFloat(item.unitPrice) || 0;
+        const discount = parseFloat(item.discount) || 0;
+        const optionPrice = item.selectedOption ? (parseFloat(item.selectedOption.prix_option) || 0) : 0;
+        const productTva = parseFloat(item.tva) || 19;
+        const optionTva = parseFloat(item.optionTva) || parseFloat(item.selectedOption?.tva) || productTva;
+
+        const itemSubtotal = quantity * (basePrice + optionPrice);
+        const itemDiscount = quantity * basePrice * (discount / 100);
+        const itemTotalHT = quantity * (basePrice * (1 - discount / 100) + optionPrice);
+
+        const baseTvaAmount = quantity * (basePrice * (1 - discount / 100)) * (productTva / 100);
+        const optionTvaAmount = quantity * optionPrice * (optionTva / 100);
+        totalTvaAmount += baseTvaAmount + optionTvaAmount;
+
+        subtotal += itemSubtotal;
+        totalDiscount += itemDiscount;
+
         return {
           ...item,
-          total: itemTotal
+          basePrice: basePrice,
+          discount: discount,
+          tva: productTva,
+          optionTva: optionTva,
+          selectedOption: item.selectedOption ? { ...item.selectedOption, tva: optionTva } : item.selectedOption,
+          total: itemTotalHT
         };
       });
-      
+
+      const totalHT = subtotal - totalDiscount;
+      const clientType = req.body.clientType || 'particulier';
+      const tvaRate = req.body.tvaRate || 19;
+      const tvaAmount = totalTvaAmount;
+      const totalTTC = totalHT + tvaAmount;
+      const totalAmount = totalHT; // Devis = HT seulement
+
       req.body.items = items;
       req.body.subtotal = subtotal;
       req.body.totalDiscount = totalDiscount;
-      req.body.totalAmount = subtotal - totalDiscount;
+      req.body.totalHT = totalHT;
+      req.body.tvaRate = tvaRate;
+      req.body.tvaAmount = tvaAmount;
+      req.body.totalTTC = totalTTC;
+      req.body.totalAmount = totalAmount;
     }
     
     req.body.updatedAt = new Date();
@@ -493,17 +546,25 @@ const generateEntreprisePDF = async (devis, res) => {
 
     rowY += 25;
 
-    // Ligne séparée pour l'option si elle existe - sans bordures
-    if (item.selectedOption && optionPrice > 0) {
+    // Ligne séparée pour l'option si elle existe ET a un nom valide
+    if (item.selectedOption && item.selectedOption.option_name && item.selectedOption.option_name !== 'undefined') {
       const optionTotal = quantity * optionPrice;
       currentX = startX;
       doc.fontSize(10).fillColor("#333333");
+
+      // Déterminer le type d'option (Tissu/Mousse)
+      let optionTypeRaw = (item.selectedOption && item.selectedOption.groupType) || '';
+      if (!optionTypeRaw) {
+        const marker = `${item.selectedOption.group || ''} ${item.selectedOption.option_name || ''}`;
+        optionTypeRaw = /mousse/i.test(marker) ? 'mousse' : 'options';
+      }
+      const optionTypeLabel = String(optionTypeRaw).toLowerCase() === 'mousse' ? 'Mousse' : 'Tissu';
       
       // Quantité vide pour l'option
       currentX += colWidths[0];
       
-      // Description de l'option
-      doc.text(`(Option: ${item.selectedOption.option_name})`, currentX + 2, rowY + 8, {
+      // Description de l'option avec type
+      doc.text(`(${optionTypeLabel} - ${item.selectedOption.option_name})`, currentX + 2, rowY + 8, {
         width: colWidths[1] - 4,
         align: "left",
       });

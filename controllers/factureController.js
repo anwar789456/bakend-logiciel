@@ -171,30 +171,56 @@ const createFacture = async (req, res) => {
     const factureNumber = await generateFactureNumber();
     console.log('Generated facture number:', factureNumber);
 
-    // Calculate totals
+    // Calculate totals (remise sur prix de base uniquement, TVA par article)
     let subtotal = 0;
     let totalDiscount = 0;
+    let totalTvaAmount = 0;
 
     const items = req.body.items.map(item => {
-      const itemTotal = (item.quantity * item.unitPrice) * (1 - (item.discount || 0) / 100);
-      subtotal += item.quantity * item.unitPrice;
-      totalDiscount += (item.quantity * item.unitPrice) * ((item.discount || 0) / 100);
+      const quantity = parseFloat(item.quantity) || 0;
+      const basePrice = parseFloat(item.basePrice) || parseFloat(item.unitPrice) || 0;
+      const discount = parseFloat(item.discount) || 0;
+      const optionPrice = item.selectedOption ? (parseFloat(item.selectedOption.prix_option) || 0) : 0;
+      const productTva = parseFloat(item.tva) || 19;
+      const optionTva = parseFloat(item.optionTva) || parseFloat(item.selectedOption?.tva) || productTva;
+
+      // Sous-total par ligne (avant remise)
+      const itemSubtotal = quantity * (basePrice + optionPrice);
+      // Remise uniquement sur le prix de base
+      const itemDiscount = quantity * basePrice * (discount / 100);
+      // Montant final HT (après remise et ajout option)
+      const itemTotalHT = quantity * (basePrice * (1 - discount / 100) + optionPrice);
+
+      // TVA par composant si client type entreprise
+      if ((req.body.clientType || 'particulier') === 'entreprise') {
+        const baseTvaAmount = quantity * (basePrice * (1 - discount / 100)) * (productTva / 100);
+        const optionTvaAmount = quantity * optionPrice * (optionTva / 100);
+        totalTvaAmount += baseTvaAmount + optionTvaAmount;
+      }
+
+      subtotal += itemSubtotal;
+      totalDiscount += itemDiscount;
+
       return {
         ...item,
-        discount: item.discount || 0,
-        total: itemTotal
+        basePrice: basePrice,
+        discount: discount,
+        tva: productTva,
+        optionTva: optionTva,
+        selectedOption: item.selectedOption ? { ...item.selectedOption, tva: optionTva } : item.selectedOption,
+        total: itemTotalHT
       };
     });
 
     const totalHT = subtotal - totalDiscount;
 
-    // Calculate TVA for both particulier and entreprise
+    // TVA toujours calculée par article; total TTC = HT + TVA
     const clientType = req.body.clientType || 'particulier';
-    const tvaRate = req.body.tvaRate || 19; // TVA pour tous les types de clients
-    const tvaAmount = totalHT * tvaRate / 100;
+    const tvaRate = req.body.tvaRate || 19;
+    const tvaAmount = totalTvaAmount;
     const totalTTC = totalHT + tvaAmount;
 
-    // totalAmount = totalTTC for both types
+    // Montant final TTC
     const totalAmount = totalTTC;
 
     const factureData = {
@@ -239,28 +265,52 @@ const updateFactureById = async (req, res) => {
     if (req.body.items) {
       let subtotal = 0;
       let totalDiscount = 0;
-      
+      let totalTvaAmount = 0;
+
       const items = req.body.items.map(item => {
-        const itemTotal = (item.quantity * item.unitPrice) * (1 - (item.discount || 0) / 100);
-        subtotal += item.quantity * item.unitPrice;
-        totalDiscount += (item.quantity * item.unitPrice) * ((item.discount || 0) / 100);
+        const quantity = parseFloat(item.quantity) || 0;
+        const basePrice = parseFloat(item.basePrice) || parseFloat(item.unitPrice) || 0;
+        const discount = parseFloat(item.discount) || 0;
+        const optionPrice = item.selectedOption ? (parseFloat(item.selectedOption.prix_option) || 0) : 0;
+        const productTva = parseFloat(item.tva) || 19;
+        const optionTva = parseFloat(item.optionTva) || parseFloat(item.selectedOption?.tva) || productTva;
+
+        const itemSubtotal = quantity * (basePrice + optionPrice);
+        const itemDiscount = quantity * basePrice * (discount / 100);
+        const itemTotalHT = quantity * (basePrice * (1 - discount / 100) + optionPrice);
+
+        if ((req.body.clientType || 'particulier') === 'entreprise') {
+          const baseTvaAmount = quantity * (basePrice * (1 - discount / 100)) * (productTva / 100);
+          const optionTvaAmount = quantity * optionPrice * (optionTva / 100);
+          totalTvaAmount += baseTvaAmount + optionTvaAmount;
+        }
+
+        subtotal += itemSubtotal;
+        totalDiscount += itemDiscount;
+
         return {
           ...item,
-          total: itemTotal
+          basePrice: basePrice,
+          discount: discount,
+          tva: productTva,
+          optionTva: optionTva,
+          selectedOption: item.selectedOption ? { ...item.selectedOption, tva: optionTva } : item.selectedOption,
+          total: itemTotalHT
         };
       });
-      
+
       const totalHT = subtotal - totalDiscount;
       const clientType = req.body.clientType || 'particulier';
-      const tvaRate = clientType === 'entreprise' ? (req.body.tvaRate || 19) : 0;
-      const tvaAmount = clientType === 'entreprise' ? (totalHT * tvaRate / 100) : 0;
+      const tvaRate = req.body.tvaRate || 19;
+      const tvaAmount = totalTvaAmount;
       const totalTTC = totalHT + tvaAmount;
-      const totalAmount = clientType === 'entreprise' ? totalTTC : totalHT;
-      
+      const totalAmount = totalTTC;
+
       req.body.items = items;
       req.body.subtotal = subtotal;
       req.body.totalDiscount = totalDiscount;
       req.body.totalHT = totalHT;
+      req.body.tvaRate = tvaRate;
       req.body.tvaAmount = tvaAmount;
       req.body.totalTTC = totalTTC;
       req.body.totalAmount = totalAmount;
@@ -402,6 +452,7 @@ const generateFacturePDF = async (req, res) => {
     // Lignes des articles
     let rowY = startY + 25;
     facture.items.forEach((item) => {
+      console.log('PDF Item:', JSON.stringify(item, null, 2)); // Debug log
       const productTva = parseFloat(item.tva) || 19;
       const optionTva = parseFloat(item.optionTva) || parseFloat(item.selectedOption?.tva) || productTva;
       const basePrice = parseFloat(item.basePrice) || parseFloat(item.unitPrice) || 0;
@@ -453,13 +504,21 @@ const generateFacturePDF = async (req, res) => {
 
       rowY += 25;
 
-      // Ligne séparée pour l'option si elle existe - sans bordures
-      if (item.selectedOption && optionPrice > 0) {
+      // Ligne séparée pour l'option si elle existe ET a un nom valide
+      if (item.selectedOption && item.selectedOption.option_name && item.selectedOption.option_name !== 'undefined') {
         const optionTotal = quantity * optionPrice;
         currentX = startX;
-        
-        // Description de l'option
-        doc.text(item.selectedOption.option_name, currentX + 2, rowY + 8, {
+
+        // Déterminer le type d'option (Tissu/Mousse)
+        let optionTypeRaw = (item.selectedOption && item.selectedOption.groupType) || '';
+        if (!optionTypeRaw) {
+          const marker = `${item.selectedOption.group || ''} ${item.selectedOption.option_name || ''}`;
+          optionTypeRaw = /mousse/i.test(marker) ? 'mousse' : 'options';
+        }
+        const optionTypeLabel = String(optionTypeRaw).toLowerCase() === 'mousse' ? 'Mousse' : 'Tissu';
+
+        // Description de l'option avec type
+        doc.text(`${optionTypeLabel} - ${item.selectedOption.option_name}`, currentX + 2, rowY + 8, {
           width: colWidths[0] - 4,
           align: "left",
         });
@@ -495,6 +554,8 @@ const generateFacturePDF = async (req, res) => {
         rowY += 25;
       }
     });
+
+    
 
     // Ajouter informations supplémentaires
     rowY += 30;
@@ -546,8 +607,8 @@ const generateFacturePDF = async (req, res) => {
       }
       tvaGroups[productTva] += basePriceAfterDiscount;
       
-      // Ajouter au groupe TVA de l'option si elle existe
-      if (item.selectedOption && optionPrice > 0) {
+      // Ajouter au groupe TVA de l'option si elle existe ET a un nom valide
+      if (item.selectedOption && item.selectedOption.option_name && item.selectedOption.option_name !== 'undefined' && optionPrice > 0) {
         const optionPriceTotal = quantity * optionPrice;
         
         if (!tvaGroups[optionTva]) {
@@ -557,9 +618,11 @@ const generateFacturePDF = async (req, res) => {
       }
     });
     
-    // Afficher les détails TVA pour tous les clients
+    // Afficher les détails TVA pour tous les clients et calculer le total TVA
+    let totalTvaCalculated = 0;
     Object.entries(tvaGroups).forEach(([rate, baseAmount]) => {
       const tvaAmount = baseAmount * parseFloat(rate) / 100;
+      totalTvaCalculated += tvaAmount;
       
       doc.fontSize(10).fillColor("#333333");
       doc.text(`TVA ${rate}% sur ${baseAmount.toFixed(3)} DT`, summaryX, summaryY);
@@ -573,10 +636,11 @@ const generateFacturePDF = async (req, res) => {
     doc.moveTo(summaryX, summaryY).lineTo(summaryX + summaryWidth - 20, summaryY).stroke();
     summaryY += 15;
 
-    // TOTAL TTC uniquement (couleur grise)
+    // TOTAL (style original) - valeur TTC calculée
+    const totalTTC = (facture.totalHT || 0) + totalTvaCalculated;
     doc.fontSize(11).fillColor("#666666").font("Helvetica-Bold");
     doc.text("Total", summaryX, summaryY);
-    doc.text(`${facture.totalAmount.toFixed(3)} DT`, summaryX + summaryWidth - 80, summaryY);
+    doc.text(`${totalTTC.toFixed(3)} DT`, summaryX + summaryWidth - 80, summaryY);
 
 
     // Footer
