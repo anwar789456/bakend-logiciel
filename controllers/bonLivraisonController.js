@@ -260,8 +260,8 @@ const generateBonLivraisonPDF = async (req, res) => {
     const startY = 220;
     const startX = 20;
     const tableWidth = 555;
-    const colWidths = [80, 355, 120]; // Quantité, Description, Ref Couleur
-    const headers = ["Quantité", "Description", "Ref Couleur"];
+    const colWidths = [355, 80, 120]; // Description, Quantité, Ref Couleur
+    const headers = ["Description", "Quantité", "Ref Couleur"];
     
     // Table header avec style gris
     let currentX = startX;
@@ -288,17 +288,17 @@ const generateBonLivraisonPDF = async (req, res) => {
       currentX = startX;
       doc.fontSize(10).fillColor("#333333");
       
-      // Quantité
-      doc.text(item.quantity.toString(), currentX + 2, rowY + 8, {
+      // Description du produit
+      doc.text(item.description, currentX + 2, rowY + 8, {
         width: colWidths[0] - 4,
-        align: "center"
+        align: "left"
       });
       currentX += colWidths[0];
       
-      // Description (sans option)
-      doc.text(item.description, currentX + 2, rowY + 8, {
+      // Quantité
+      doc.text(item.quantity.toString(), currentX + 2, rowY + 8, {
         width: colWidths[1] - 4,
-        align: "left"
+        align: "center"
       });
       currentX += colWidths[1];
       
@@ -310,22 +310,26 @@ const generateBonLivraisonPDF = async (req, res) => {
       
       rowY += 25;
 
-      // Ligne séparée pour l'option si disponible - sans bordures
+      // Ligne séparée pour l'option si elle existe - sans bordures
       if (item.selectedOption && item.selectedOption.option_name) {
-        doc.fontSize(9).fillColor("#666666");
+        currentX = startX;
+        doc.fontSize(10).fillColor("#333333");
         
-        // Colonne vide pour quantité
-        currentX = startX + colWidths[0];
-        
-        // Option dans la colonne description
-        doc.text(`Option: ${item.selectedOption.option_name}`, currentX + 2, rowY + 8, {
-          width: colWidths[1] - 4,
-          align: "left"
+        // Description de l'option
+        doc.text(`(Option: ${item.selectedOption.option_name})`, currentX + 2, rowY + 8, {
+          width: colWidths[0] - 4,
+          align: "left",
         });
+        currentX += colWidths[0];
+        
+        // Quantité vide pour l'option
+        currentX += colWidths[1];
+        
+        // Ref Color vide pour l'option
+        currentX += colWidths[2];
         
         rowY += 25;
-      }  
-      doc.fillColor("#000"); // Remettre la couleur par défaut
+      }
     });
 
     // Section "Reste à payer" - largeur complète comme le tableau
