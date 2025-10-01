@@ -22,7 +22,7 @@ const productSchema = new mongoose.Schema({
     categorie: String,
     disponibilite: String,
     options: [{option_name: String, prix_option: String, tva: { type: Number }}],
-    sizes: [{longueur: String,largeur: String,prix_option: String,prix_coffre: String,img_path: String, preferred: { type: Boolean }}],
+    sizes: [{longueur: String,largeur: String,prix_option: String,prix_coffre: String,img_path: String, preferred: Boolean}],
     mousse: [{mousse_name: String,mousse_prix: String,}],
     subcategorie: String,
     direction: String,
