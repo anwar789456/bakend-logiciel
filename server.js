@@ -27,6 +27,7 @@ const AgendaRouter = require('./routes/agendaRoutes');
 const BonLivraisonRouter = require('./routes/bonLivraisonRoutes');
 const RecuPaiementRouter = require('./routes/recuPaiementRoutes');
 const FicheCommandeRouter = require('./routes/ficheCommandeRoutes');
+const BannerAdvertisementRouter = require('./routes/bannerAdvertisementRoutes');
 const initChangeStreams = require('./initChangeStreams');
 
 const app = express();
@@ -92,6 +93,7 @@ app.use(AgendaRouter);
 app.use('/admin/api/logiciel', BonLivraisonRouter);
 app.use('/admin/api/logiciel', RecuPaiementRouter);
 app.use('/admin/api/logiciel/fichecommande', FicheCommandeRouter);
+app.use(BannerAdvertisementRouter);
 
 // Start Server
 server.listen(PORT, '0.0.0.0', () => {
