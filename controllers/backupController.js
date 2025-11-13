@@ -10,6 +10,7 @@ const CommandeModel = require('../models/Commande');
 const DevisModel = require('../models/devisModel');
 const DevisCompteurModel = require('../models/devisCompteurModel');
 const MessagerieModel = require('../models/messagerieModel');
+const CongesModel = require('../models/congesModel');
 
 // Helper function to get the actual model from the module
 function getModel(modelModule) {
@@ -21,6 +22,7 @@ function getModel(modelModule) {
   if (modelModule && modelModule.Devis) return modelModule.Devis;
   if (modelModule && modelModule.DevisCompteur) return modelModule.DevisCompteur;
   if (modelModule && modelModule.Messagerie) return modelModule.Messagerie;
+  if (modelModule && modelModule.Conges) return modelModule.Conges;
   return modelModule;
 }
 
@@ -30,7 +32,8 @@ const AVAILABLE_COLLECTIONS = [
   { name: 'commandes', modelModule: CommandeModel, displayName: 'Commandes' },
   { name: 'devis', modelModule: DevisModel, displayName: 'Devis' },
   { name: 'devis-compteur', modelModule: DevisCompteurModel, displayName: 'Compteur Devis' },
-  { name: 'messagerie', modelModule: MessagerieModel, displayName: 'Messages' }
+  { name: 'messagerie', modelModule: MessagerieModel, displayName: 'Messages' },
+  { name: 'conges', modelModule: CongesModel, displayName: 'Congés' }
 ];
 
 // ✅ Controller for /info
