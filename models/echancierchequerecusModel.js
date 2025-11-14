@@ -2,13 +2,16 @@ const mongoose = require('mongoose');
 const { getConnections } = require('../config/db');
 
 const echancierchequerecusSchema = new mongoose.Schema({
-    beneficiaire: String,
+    emetteur: String,
     num_cheque: String,
-    motif: String,
+    tel: String,
+    banque: String,
     montant: String,
     date_emission: Date,
     echeance: Date,
-    etat: String
+    tireur: String,
+    etat: String,
+    motif: String
 }, { timestamps: true });
 
 // This model will be initialized after the database connections are established
