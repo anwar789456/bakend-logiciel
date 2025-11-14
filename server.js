@@ -30,6 +30,10 @@ const RecuPaiementRouter = require('./routes/recuPaiementRoutes');
 const FicheCommandeRouter = require('./routes/ficheCommandeRoutes');
 const BannerAdvertisementRouter = require('./routes/bannerAdvertisementRoutes');
 const BordereauchequeRouter = require('./routes/bordereauchequeRoutes');
+const EchancierchequeemisRouter = require('./routes/echancierchequeemisRoutes');
+const BordereauchequereçuRouter = require('./routes/bordereauchequereçuRoutes');
+const BordereautraiteemisRouter = require('./routes/bordereautraiteemisRoutes');
+const BordereautraiterecusRouter = require('./routes/bordereautraiterecusRoutes');
 const initChangeStreams = require('./initChangeStreams');
 
 const app = express();
@@ -98,6 +102,10 @@ app.use('/admin/api/logiciel', RecuPaiementRouter);
 app.use('/admin/api/logiciel/fichecommande', FicheCommandeRouter);
 app.use(BannerAdvertisementRouter);
 app.use(BordereauchequeRouter);
+app.use(EchancierchequeemisRouter);
+app.use(BordereauchequereçuRouter);
+app.use(BordereautraiteemisRouter);
+app.use(BordereautraiterecusRouter);
 
 // Start Server
 server.listen(PORT, '0.0.0.0', () => {
