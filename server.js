@@ -29,6 +29,7 @@ const BonLivraisonRouter = require('./routes/bonLivraisonRoutes');
 const RecuPaiementRouter = require('./routes/recuPaiementRoutes');
 const FicheCommandeRouter = require('./routes/ficheCommandeRoutes');
 const BannerAdvertisementRouter = require('./routes/bannerAdvertisementRoutes');
+const BordereauchequeRouter = require('./routes/bordereauchequeRoutes');
 const initChangeStreams = require('./initChangeStreams');
 
 const app = express();
@@ -96,6 +97,7 @@ app.use('/admin/api/logiciel', BonLivraisonRouter);
 app.use('/admin/api/logiciel', RecuPaiementRouter);
 app.use('/admin/api/logiciel/fichecommande', FicheCommandeRouter);
 app.use(BannerAdvertisementRouter);
+app.use(BordereauchequeRouter);
 
 // Start Server
 server.listen(PORT, '0.0.0.0', () => {
