@@ -7,6 +7,7 @@ const userSchema = new mongoose.Schema({
     password: String,
     role: String,
     img_url: String,
+    bank: String,
     access_routes: [{
         access_route: String,
         access_right: String
