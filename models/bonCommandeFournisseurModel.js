@@ -2,22 +2,22 @@ const mongoose = require('mongoose');
 const { getConnections } = require('../config/db');
 
 const bonCommandeFournisseurSchema = new mongoose.Schema({
-  fournisseur: { type: String, required: true },
-  adresse: { type: String, required: true },
-  gsm: { type: String, required: true },
-  compteur: { type: String, unique: true },
-  date_bon: { type: Date, default: Date.now },
+  fournisseur: { type: String },
+  adresse: { type: String },
+  gsm: { type: String },
+  compteur: { type: String },
+  date_bon: { type: Date },
   
   articles: [{
-    description: { type: String, required: true },
-    quantity: { type: String, required: true },
-    pu_ht: { type: String, required: true },
-    pht: { type: String, required: true },
-    pu_ttc: { type: String, required: true }
+    description: { type: String },
+    quantity: { type: String },
+    pu_ht: { type: String },
+    pht: { type: String },
+    pu_ttc: { type: String }
   }],
   
-  avance: { type: String, default: '0' },
-  reglement: { type: String, default: '0' },
+  avance: { type: String },
+  reglement: { type: String },
   
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now }
