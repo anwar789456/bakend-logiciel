@@ -35,6 +35,7 @@ const BordereauchequereçuRouter = require('./routes/bordereauchequereçuRoutes'
 const BordereautraiteemisRouter = require('./routes/bordereautraiteemisRoutes');
 const BordereautraiterecusRouter = require('./routes/bordereautraiterecusRoutes');
 const EchancierchequerecusRouter = require('./routes/echancierchequerecusRoutes');
+const EncoursproductionRouter = require('./routes/encoursproductionRoutes');
 const initChangeStreams = require('./initChangeStreams');
 
 const app = express();
@@ -108,6 +109,7 @@ app.use(BordereauchequereçuRouter);
 app.use(BordereautraiteemisRouter);
 app.use(BordereautraiterecusRouter);
 app.use(EchancierchequerecusRouter);
+app.use(EncoursproductionRouter);
 
 // Start Server
 server.listen(PORT, '0.0.0.0', () => {
