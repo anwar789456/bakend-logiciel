@@ -20,7 +20,7 @@ const getAllUsers = async (req, res) => {
 // Create a new user
 const createUser = async (req, res) => {
     try {
-        const { userID, username, password, role, img_url, access_routes } = req.body;
+        const { userID, username, password, role, img_url, bank, access_routes } = req.body;
         
         if (!username || !password) {
             return res.status(400).json({ message: 'Username and password are required' });
@@ -30,9 +30,10 @@ const createUser = async (req, res) => {
         const newUser = new User({
             userID,
             username,
-            password, // Note: In a production environment, you should hash passwords
+            password,
             role,
             img_url,
+            bank,
             access_routes
         });
         
@@ -66,12 +67,12 @@ const getUserById = async (req, res) => {
 const updateUserById = async (req, res) => {
     try {
         const { id } = req.params;
-        const { userID, username, password, role, img_url, access_routes } = req.body;
+        const { userID, username, password, role, img_url, bank, access_routes } = req.body;
         
         const User = getUserModel();
         const updatedUser = await User.findByIdAndUpdate(
             id,
-            { userID, username, password, role, img_url, access_routes },
+            { userID, username, password, role, img_url, bank, access_routes },
             { new: true, runValidators: true }
         );
         
