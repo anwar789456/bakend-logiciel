@@ -36,6 +36,8 @@ const BordereautraiteemisRouter = require('./routes/bordereautraiteemisRoutes');
 const BordereautraiterecusRouter = require('./routes/bordereautraiterecusRoutes');
 const EchancierchequerecusRouter = require('./routes/echancierchequerecusRoutes');
 const EncoursproductionRouter = require('./routes/encoursproductionRoutes');
+const BonCommandeFournisseurRouter = require('./routes/bonCommandeFournisseurRoutes');
+const BonCompteurRouter = require('./routes/bonCompteurRouter');
 const initChangeStreams = require('./initChangeStreams');
 
 const app = express();
@@ -110,6 +112,8 @@ app.use(BordereautraiteemisRouter);
 app.use(BordereautraiterecusRouter);
 app.use(EchancierchequerecusRouter);
 app.use(EncoursproductionRouter);
+app.use('/admin/api/logiciel', BonCommandeFournisseurRouter);
+app.use(BonCompteurRouter);
 
 // Start Server
 server.listen(PORT, '0.0.0.0', () => {
