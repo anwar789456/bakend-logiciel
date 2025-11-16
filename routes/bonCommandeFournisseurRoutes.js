@@ -9,6 +9,7 @@ const {
 } = require('../controllers/bonCommandeFournisseurController');
 
 // Routes CRUD pour les bons de commande fournisseur
+
 router.post('/admin/api/logiciel/boncommandefournisseur/create-boncommandefournisseur', createBonCommandeFournisseur);
 router.get('/admin/api/logiciel/boncommandefournisseur/get-boncommandefournisseurs', getAllBonCommandeFournisseurs);
 router.get('/admin/api/logiciel/boncommandefournisseur/get-boncommandefournisseur/:id', getBonCommandeFournisseurById);
