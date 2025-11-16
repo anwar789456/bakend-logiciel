@@ -1,13 +1,14 @@
-const { initModel: initBonCommandeFournisseur } = require('../models/bonCommandeFournisseurModel');
+const bonCommandeFournisseurModel = require('../models/bonCommandeFournisseurModel');
+
+// Helper function to get the initialized model
+const getBonCommandeFournisseurModel = () => {
+    return bonCommandeFournisseurModel.initModel();
+};
 
 // Créer un nouveau bon de commande fournisseur
 const createBonCommandeFournisseur = async (req, res) => {
-  const BonCommandeFournisseur = initBonCommandeFournisseur();
-  if (!BonCommandeFournisseur) {
-    return res.status(500).json({ message: 'BonCommandeFournisseur model is not initialized' });
-  }
-
   try {
+    const BonCommandeFournisseur = getBonCommandeFournisseurModel();
     const bonCommande = new BonCommandeFournisseur(req.body);
     await bonCommande.save();
     
@@ -20,12 +21,8 @@ const createBonCommandeFournisseur = async (req, res) => {
 
 // Obtenir tous les bons de commande fournisseur
 const getAllBonCommandeFournisseurs = async (req, res) => {
-  const BonCommandeFournisseur = initBonCommandeFournisseur();
-  if (!BonCommandeFournisseur) {
-    return res.status(500).json({ message: 'BonCommandeFournisseur model is not initialized' });
-  }
-
   try {
+    const BonCommandeFournisseur = getBonCommandeFournisseurModel();
     const bonCommandes = await BonCommandeFournisseur.find().sort({ createdAt: -1 });
     res.json(bonCommandes);
   } catch (error) {
@@ -36,12 +33,8 @@ const getAllBonCommandeFournisseurs = async (req, res) => {
 
 // Obtenir un bon de commande fournisseur par ID
 const getBonCommandeFournisseurById = async (req, res) => {
-  const BonCommandeFournisseur = initBonCommandeFournisseur();
-  if (!BonCommandeFournisseur) {
-    return res.status(500).json({ message: 'BonCommandeFournisseur model is not initialized' });
-  }
-
   try {
+    const BonCommandeFournisseur = getBonCommandeFournisseurModel();
     const bonCommande = await BonCommandeFournisseur.findById(req.params.id);
     if (!bonCommande) {
       return res.status(404).json({ message: 'Bon de commande fournisseur non trouvé' });
@@ -55,12 +48,8 @@ const getBonCommandeFournisseurById = async (req, res) => {
 
 // Mettre à jour un bon de commande fournisseur
 const updateBonCommandeFournisseur = async (req, res) => {
-  const BonCommandeFournisseur = initBonCommandeFournisseur();
-  if (!BonCommandeFournisseur) {
-    return res.status(500).json({ message: 'BonCommandeFournisseur model is not initialized' });
-  }
-
   try {
+    const BonCommandeFournisseur = getBonCommandeFournisseurModel();
     const bonCommande = await BonCommandeFournisseur.findByIdAndUpdate(
       req.params.id,
       { ...req.body, updatedAt: new Date() },
@@ -80,12 +69,8 @@ const updateBonCommandeFournisseur = async (req, res) => {
 
 // Supprimer un bon de commande fournisseur
 const deleteBonCommandeFournisseur = async (req, res) => {
-  const BonCommandeFournisseur = initBonCommandeFournisseur();
-  if (!BonCommandeFournisseur) {
-    return res.status(500).json({ message: 'BonCommandeFournisseur model is not initialized' });
-  }
-
   try {
+    const BonCommandeFournisseur = getBonCommandeFournisseurModel();
     const bonCommande = await BonCommandeFournisseur.findByIdAndDelete(req.params.id);
     if (!bonCommande) {
       return res.status(404).json({ message: 'Bon de commande fournisseur non trouvé' });
