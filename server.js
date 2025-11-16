@@ -112,7 +112,7 @@ app.use(BordereautraiteemisRouter);
 app.use(BordereautraiterecusRouter);
 app.use(EchancierchequerecusRouter);
 app.use(EncoursproductionRouter);
-app.use('/admin/api/logiciel', BonCommandeFournisseurRouter);
+app.use(BonCommandeFournisseurRouter);
 app.use(BonCompteurRouter);
 
 // Start Server
