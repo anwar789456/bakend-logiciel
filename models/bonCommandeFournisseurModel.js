@@ -13,7 +13,8 @@ const bonCommandeFournisseurSchema = new mongoose.Schema({
     quantity: { type: String },
     pu_ht: { type: String },
     pht: { type: String },
-    pu_ttc: { type: String }
+    pu_ttc: { type: String },
+    ref_couleur: { type: String }
   }],
   
   avance: { type: String },
