@@ -38,6 +38,7 @@ const EchancierchequerecusRouter = require('./routes/echancierchequerecusRoutes'
 const EncoursproductionRouter = require('./routes/encoursproductionRoutes');
 const BonCommandeFournisseurRouter = require('./routes/bonCommandeFournisseurRoutes');
 const BonCompteurRouter = require('./routes/bonCompteurRouter');
+const BonReceptionRouter = require('./routes/bonReceptionRoutes');
 const initChangeStreams = require('./initChangeStreams');
 
 const app = express();
@@ -114,6 +115,7 @@ app.use(EchancierchequerecusRouter);
 app.use(EncoursproductionRouter);
 app.use(BonCommandeFournisseurRouter);
 app.use(BonCompteurRouter);
+app.use(BonReceptionRouter);
 
 // Start Server
 server.listen(PORT, '0.0.0.0', () => {
