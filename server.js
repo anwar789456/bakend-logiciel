@@ -40,6 +40,7 @@ const BonCommandeFournisseurRouter = require('./routes/bonCommandeFournisseurRou
 const BonCompteurRouter = require('./routes/bonCompteurRouter');
 const BonReceptionRouter = require('./routes/bonReceptionRoutes');
 const BonReceptionCompteurRouter = require('./routes/bonReceptionCompteurRouter');
+const EtatReglementsFournisseurRouter = require('./routes/etatReglementsFournisseurRoutes');
 const initChangeStreams = require('./initChangeStreams');
 
 const app = express();
@@ -118,6 +119,7 @@ app.use(BonCommandeFournisseurRouter);
 app.use(BonCompteurRouter);
 app.use(BonReceptionRouter);
 app.use(BonReceptionCompteurRouter);
+app.use(EtatReglementsFournisseurRouter);
 
 // Start Server
 server.listen(PORT, '0.0.0.0', () => {
