@@ -5,6 +5,7 @@ const bonReceptionSchema = new mongoose.Schema({
   fournisseur: { type: String },
   adresse: { type: String },
   gsm: { type: String },
+  compteur: { type: String },
   
   articles: [{
     description: { type: String },
